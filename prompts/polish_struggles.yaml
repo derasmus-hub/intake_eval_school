@@ -1,0 +1,126 @@
+polish_english_contrastive:
+  articles:
+    description: "Polish has no articles (a, an, the). This is one of the most persistent errors for Polish learners."
+    common_errors:
+      - "Omitting articles entirely: 'I have dog' instead of 'I have a dog'"
+      - "Confusing definite and indefinite: 'I saw a moon' instead of 'I saw the moon'"
+      - "Overusing 'the' once learned: 'The life is beautiful'"
+    teaching_strategies:
+      - "Start with concrete, countable nouns in context"
+      - "Use Polish demonstratives (ten, ta, to) as a bridge to 'the'"
+      - "Practice with picture descriptions - 'There is a cat. The cat is black.'"
+      - "Focus on the concept of 'known vs unknown' information"
+
+  prepositions:
+    description: "Polish prepositions map differently to English ones. The case system in Polish handles much of what prepositions do in English."
+    common_errors:
+      - "'na' maps to on/at/for depending on context"
+      - "'w' maps to in/at depending on context"
+      - "'do' maps to to/into/for"
+      - "Saying 'on the university' (na uniwersytecie) instead of 'at the university'"
+      - "Saying 'in Monday' instead of 'on Monday'"
+    teaching_strategies:
+      - "Teach prepositions in chunks/collocations, not in isolation"
+      - "Create visual maps showing Polish->English preposition mappings"
+      - "Practice with time expressions (in/on/at) as a group"
+      - "Practice with place expressions (in/on/at) as a separate group"
+
+  word_order:
+    description: "Polish has relatively free word order due to its case system. English requires strict SVO order."
+    common_errors:
+      - "Placing adverbs incorrectly: 'I always am happy' instead of 'I am always happy'"
+      - "Inverted word order in statements: 'Very much I like it'"
+      - "Adjective placement after noun: 'car red' instead of 'red car'"
+      - "Question formation without do/does: 'You like coffee?' instead of 'Do you like coffee?'"
+    teaching_strategies:
+      - "Drill SVO pattern with visual sentence builders"
+      - "Practice question formation with do/does/did explicitly"
+      - "Use colored blocks for sentence parts (subject=blue, verb=red, object=green)"
+
+  pronunciation:
+    description: "Several English sounds don't exist in Polish phonology."
+    common_errors:
+      - "'th' sounds /θ/ and /ð/ - often replaced with /f/, /t/, or /d/: 'fink' for 'think', 'dis' for 'this'"
+      - "w/v confusion: Polish 'w' is pronounced /v/, leading to 'wery' for 'very'"
+      - "Vowel length not distinguished: Polish doesn't differentiate long/short vowels"
+      - "Word stress: Polish stress is almost always penultimate, English stress varies"
+      - "Silent letters: 'knife', 'psychology' - Polish is more phonetic"
+    teaching_strategies:
+      - "Mirror exercises for 'th' - tongue placement between teeth"
+      - "Minimal pair drills: thin/fin, three/free, vine/wine, vet/wet"
+      - "Record and playback exercises"
+      - "Stress marking in vocabulary lists"
+
+  tenses:
+    description: "Polish uses a simpler tense system based on aspect (perfective/imperfective) rather than English's 12 tense-aspect combinations."
+    common_errors:
+      - "Confusing present simple and present continuous: 'I am go to school every day'"
+      - "Avoiding present perfect entirely: 'I lived here for 5 years' instead of 'I have lived here for 5 years'"
+      - "Overusing simple past where present perfect is needed"
+      - "Difficulty with future forms: will vs going to vs present continuous for future"
+    teaching_strategies:
+      - "Start with clear timelines - visual representation of when tenses apply"
+      - "Contrast Polish aspect with English tense-aspect: imperfective ≈ continuous, perfective ≈ simple/perfect"
+      - "Use signal words (always, right now, since, for, yet, already)"
+      - "Build from present simple → present continuous → past simple → present perfect"
+
+  false_friends:
+    description: "Words that look similar in Polish and English but have different meanings."
+    common_pairs:
+      - polish: "aktualnie"
+        looks_like: "actually"
+        real_meaning: "currently/at the moment"
+        english_actually: "w rzeczywistości"
+      - polish: "ewentualnie"
+        looks_like: "eventually"
+        real_meaning: "possibly/alternatively"
+        english_eventually: "w końcu/ostatecznie"
+      - polish: "sympatyczny"
+        looks_like: "sympathetic"
+        real_meaning: "nice/likeable"
+        english_sympathetic: "współczujący"
+      - polish: "sensowny"
+        looks_like: "sensible"
+        real_meaning: "sensible (correct match)"
+        note: "This one actually matches but students doubt it"
+      - polish: "ordynarny"
+        looks_like: "ordinary"
+        real_meaning: "vulgar/rude"
+        english_ordinary: "zwyczajny"
+      - polish: "fabryka"
+        looks_like: "fabric"
+        real_meaning: "factory"
+        english_fabric: "tkanina/materiał"
+      - polish: "recepta"
+        looks_like: "receipt"
+        real_meaning: "prescription"
+        english_receipt: "paragon/pokwitowanie"
+    teaching_strategies:
+      - "Create flashcard sets specifically for false friends"
+      - "Use sentences where the false friend creates a humorous misunderstanding"
+      - "Test regularly as these errors are persistent"
+
+  conditionals:
+    description: "Polish conditional structures differ significantly from English ones."
+    common_errors:
+      - "Using 'will' in if-clauses: 'If I will go...' instead of 'If I go...'"
+      - "Mixing conditional types"
+      - "Avoiding third conditional entirely due to complexity"
+    teaching_strategies:
+      - "Teach conditionals in order: zero → first → second → third"
+      - "Use real-life scenarios relevant to the student"
+      - "Emphasize the 'no will after if' rule as a starting point"
+      - "Practice with gap-fill and sentence completion"
+
+  phrasal_verbs:
+    description: "Polish doesn't have phrasal verbs. The concept of a verb changing meaning with a particle is foreign."
+    common_errors:
+      - "Avoiding phrasal verbs entirely, using formal Latin-origin words instead"
+      - "Separable vs inseparable confusion: 'look up it' instead of 'look it up'"
+      - "Using wrong particle: 'look at' instead of 'look for'"
+    teaching_strategies:
+      - "Teach in context, not as lists"
+      - "Group by particle (up/down/out/in) to show patterns"
+      - "Group by base verb (look up, look for, look after, look into)"
+      - "Use visual imagery to link particle meaning to spatial concepts"
+      - "Start with the 20 most common phrasal verbs"

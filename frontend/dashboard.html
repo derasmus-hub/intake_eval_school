@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - Panel nauczyciela</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard-header">
+            <div>
+                <h1>Teacher Dashboard</h1>
+                <p class="subtitle">Panel nauczyciela</p>
+            </div>
+            <a href="/" class="btn btn-primary btn-sm">+ New Student / Nowy uczeń</a>
+        </div>
+
+        <div id="student-list-section">
+            <h2>Students / Uczniowie</h2>
+            <div id="student-list" class="student-list">
+                <div class="loading">Loading students...</div>
+            </div>
+        </div>
+
+        <div id="student-detail" class="hidden">
+            <button onclick="showStudentList()" class="btn btn-sm" style="margin-bottom:1rem;">
+                &larr; Back to list / Powrót do listy
+            </button>
+
+            <div class="detail-panel">
+                <h2 id="detail-student-name">Student Name</h2>
+                <p id="detail-student-meta" class="meta"></p>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('profile')">Profile / Profil</button>
+                <button class="tab" onclick="switchTab('lessons')">Lessons / Lekcje</button>
+                <button class="tab" onclick="switchTab('progress')">Progress / Postępy</button>
+            </div>
+
+            <div id="tab-profile" class="tab-content active">
+                <div class="detail-panel">
+                    <div id="profile-content">
+                        <p>No diagnostic profile yet.</p>
+                        <button onclick="runDiagnosticFromDashboard()" class="btn btn-secondary btn-sm">
+                            Run Diagnostic / Uruchom diagnostykę
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-lessons" class="tab-content">
+                <div class="detail-panel">
+                    <div style="margin-bottom:1rem;">
+                        <button onclick="generateLesson()" class="btn btn-secondary btn-sm">
+                            Generate Next Lesson / Generuj następną lekcję
+                        </button>
+                    </div>
+                    <div id="lessons-content">
+                        <p>No lessons yet.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-progress" class="tab-content">
+                <div class="detail-panel">
+                    <div id="progress-content">
+                        <p>No progress data yet.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <a href="/">Intake Form / Formularz przyjęcia</a>
+        </footer>
+    </div>
+    <script src="/js/dashboard.js"></script>
+</body>
+</html>

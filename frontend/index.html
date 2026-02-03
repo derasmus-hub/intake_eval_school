@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Intake Form - Formularz przyjęcia</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>English Learning Intake Form</h1>
+            <p class="subtitle">Formularz przyjęcia do nauki angielskiego</p>
+        </header>
+
+        <form id="intake-form">
+            <section class="form-section">
+                <h2>Student Information / Dane ucznia</h2>
+                <div class="form-group">
+                    <label for="name">Name / Imię i nazwisko *</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="age">Age / Wiek</label>
+                    <input type="number" id="age" name="age" min="4" max="99">
+                </div>
+            </section>
+
+            <section class="form-section">
+                <h2>Current English Level / Aktualny poziom</h2>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="current_level" value="A1" required>
+                        <span>A1 - Beginner / Początkujący</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="current_level" value="A2">
+                        <span>A2 - Elementary / Podstawowy</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="current_level" value="B1">
+                        <span>B1 - Intermediate / Średniozaawansowany</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="current_level" value="B2">
+                        <span>B2 - Upper Intermediate / Powyżej średniego</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="current_level" value="C1">
+                        <span>C1 - Advanced / Zaawansowany</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="current_level" value="C2">
+                        <span>C2 - Proficient / Biegły</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="form-section">
+                <h2>Learning Goals / Cele nauki</h2>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="goals" value="conversational">
+                        <span>Conversational / Konwersacje</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="goals" value="academic">
+                        <span>Academic / Akademicki</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="goals" value="business">
+                        <span>Business / Biznesowy</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="goals" value="travel">
+                        <span>Travel / Podróże</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="goals" value="exams">
+                        <span>Exams / Egzaminy</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="form-section">
+                <h2>Problem Areas / Trudności</h2>
+                <p class="section-desc">Select areas where the student struggles / Zaznacz obszary, w których uczeń ma trudności</p>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="problem_areas" value="articles">
+                        <span>Articles (a/the) - Przedimki</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="problem_areas" value="prepositions">
+                        <span>Prepositions (in/on/at) - Przyimki</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="problem_areas" value="word_order">
+                        <span>Word order - Szyk zdania</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="problem_areas" value="th_sounds">
+                        <span>"th" sounds - Wymowa "th"</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="problem_areas" value="tenses">
+                        <span>Tenses (present/past/future) - Czasy</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="problem_areas" value="false_friends">
+                        <span>False friends - Fałszywi przyjaciele</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="problem_areas" value="conditionals">
+                        <span>Conditionals - Tryby warunkowe</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="problem_areas" value="phrasal_verbs">
+                        <span>Phrasal verbs - Czasowniki frazowe</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="form-section">
+                <h2>Filled out by / Wypełnia</h2>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="filler" value="student" checked>
+                        <span>Student / Uczeń</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="filler" value="teacher">
+                        <span>Teacher / Nauczyciel</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="filler" value="parent">
+                        <span>Parent / Rodzic</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="form-section">
+                <h2>Additional Notes / Dodatkowe uwagi</h2>
+                <div class="form-group">
+                    <textarea id="additional_notes" name="additional_notes" rows="4"
+                        placeholder="Any additional information about the student's learning needs...&#10;Dodatkowe informacje o potrzebach edukacyjnych ucznia..."></textarea>
+                </div>
+            </section>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Submit / Wyślij</button>
+            </div>
+        </form>
+
+        <div id="result" class="result-panel hidden">
+            <h2>Submission Successful!</h2>
+            <p>Student ID: <span id="student-id"></span></p>
+            <div class="result-actions">
+                <button onclick="runDiagnostic()" class="btn btn-secondary">Run Diagnostic / Uruchom diagnostykę</button>
+                <a href="/dashboard" class="btn btn-secondary">Go to Dashboard / Przejdź do panelu</a>
+            </div>
+            <div id="diagnostic-result" class="hidden">
+                <h3>Diagnostic Profile / Profil diagnostyczny</h3>
+                <pre id="diagnostic-output"></pre>
+            </div>
+        </div>
+
+        <footer>
+            <a href="/dashboard">Teacher Dashboard / Panel nauczyciela</a>
+        </footer>
+    </div>
+    <script src="/js/intake.js"></script>
+</body>
+</html>
