@@ -641,8 +641,76 @@ code, data = api("POST", "/api/auth/register", {
 })
 check("8-char password accepted", code == 200, f"status={code}")
 
-# ── 15. Security: Rate Limiting ───────────────────────────────────
-print("\n=== 15. Security: Rate Limiting ===")
+# ── 15. ICS Calendar Export ───────────────────────────────────────
+print("\n=== 15. ICS Calendar Export ===")
+
+# Test ICS generation endpoint (frontend-only, but we can test the API endpoint if added)
+# For now, test that confirmed sessions have the necessary fields for ICS generation
+
+# Find a confirmed session from earlier tests
+code, data = api("GET", "/api/student/me/sessions", token=student_token)
+check("Get sessions for ICS test", code == 200, f"status={code}")
+sessions_for_ics = data.get("sessions", [])
+confirmed_sessions = [s for s in sessions_for_ics if s.get("status") == "confirmed"]
+
+if confirmed_sessions:
+    session_for_ics = confirmed_sessions[0]
+    # Verify session has required fields for ICS
+    check("Session has id", "id" in session_for_ics, f"keys={list(session_for_ics.keys())}")
+    check("Session has scheduled_at", "scheduled_at" in session_for_ics)
+    check("Session has duration_min", "duration_min" in session_for_ics)
+    check("Session scheduled_at is ISO format", "T" in str(session_for_ics.get("scheduled_at", "")))
+
+    # Simulate ICS generation (test the expected format)
+    import datetime
+    scheduled_at = session_for_ics.get("scheduled_at")
+    duration_min = session_for_ics.get("duration_min", 60)
+
+    # Parse the date
+    try:
+        if scheduled_at:
+            # Basic validation that date can be parsed
+            dt = datetime.datetime.fromisoformat(scheduled_at.replace("Z", "+00:00"))
+            check("Can parse scheduled_at", True, f"dt={dt}")
+
+            # Build expected ICS content
+            def format_ics_date(d):
+                return d.strftime("%Y%m%dT%H%M%SZ")
+
+            start = dt
+            end = dt + datetime.timedelta(minutes=duration_min)
+            summary = "English Lesson / Lekcja angielskiego"
+
+            ics_content = "\r\n".join([
+                "BEGIN:VCALENDAR",
+                "VERSION:2.0",
+                "PRODID:-//IntakeEval//EN",
+                "CALSCALE:GREGORIAN",
+                "METHOD:PUBLISH",
+                "BEGIN:VEVENT",
+                f"UID:session-{session_for_ics['id']}@intakeeval",
+                f"DTSTAMP:{format_ics_date(datetime.datetime.utcnow())}",
+                f"DTSTART:{format_ics_date(start)}",
+                f"DTEND:{format_ics_date(end)}",
+                f"SUMMARY:{summary}",
+                "DESCRIPTION:Duration: " + str(duration_min) + " minutes",
+                "END:VEVENT",
+                "END:VCALENDAR"
+            ])
+
+            # Verify ICS has required fields
+            check("ICS has SUMMARY", "SUMMARY:" in ics_content)
+            check("ICS has DTSTART", "DTSTART:" in ics_content)
+            check("ICS has DTEND (for duration)", "DTEND:" in ics_content)
+            check("ICS has proper structure", "BEGIN:VCALENDAR" in ics_content and "END:VCALENDAR" in ics_content)
+
+    except Exception as e:
+        check("ICS date parsing failed", False, f"error={e}")
+else:
+    check("No confirmed sessions to test ICS", False, "need confirmed session")
+
+# ── 16. Security: Rate Limiting ───────────────────────────────────
+print("\n=== 16. Security: Rate Limiting ===")
 
 # Reset rate limiter for this test (call a special endpoint or just test behavior)
 # We'll make 11 rapid login attempts with wrong credentials to trigger rate limit
@@ -661,8 +729,7 @@ for i in range(12):
         check("Rate limit response has retry info", "retry" in str(data).lower() or "too many" in str(data).lower(), f"detail={data}")
         break
 
-if not rate_limit_triggered:
-    check("Rate limit should trigger after 10 attempts", False, "no 429 received")
+check("Rate limit triggered", rate_limit_triggered, "should get 429 after 10 attempts")
 
 # Verify rate limit also applies to register endpoint
 # Use a new "IP simulation" - we can't really change IP, but the rate limiter

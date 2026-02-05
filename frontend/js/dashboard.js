@@ -10,7 +10,101 @@ let filterState = {
     sort: ''
 };
 
+// ── Skeleton Loading Helpers ───────────────────────────────────────
+function renderStudentListSkeleton(count = 3) {
+    let html = '';
+    for (let i = 0; i < count; i++) {
+        html += `
+            <div class="skeleton-student-card">
+                <div class="skeleton-student-info">
+                    <div class="skeleton skeleton-text-long skeleton-text-lg"></div>
+                    <div class="skeleton skeleton-text-med skeleton-text"></div>
+                </div>
+                <div class="skeleton skeleton-level"></div>
+            </div>
+        `;
+    }
+    return html;
+}
+
+function renderSessionListSkeleton(count = 2) {
+    let html = '';
+    for (let i = 0; i < count; i++) {
+        html += `
+            <div class="skeleton-row">
+                <div class="skeleton-content">
+                    <div class="skeleton skeleton-text-long skeleton-text-lg"></div>
+                    <div class="skeleton skeleton-text-med skeleton-text"></div>
+                </div>
+                <div class="skeleton skeleton-badge"></div>
+            </div>
+        `;
+    }
+    return html;
+}
+
+// ── ICS Calendar Export ────────────────────────────────────────────
+function generateICS(session) {
+    const start = new Date(session.scheduled_at);
+    const durationMin = session.duration_min || 60;
+    const end = new Date(start.getTime() + durationMin * 60 * 1000);
+
+    // Format dates as ICS format: YYYYMMDDTHHMMSSZ
+    const formatICSDate = (d) => {
+        return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    };
+
+    const summary = session.student_name
+        ? `English Lesson: ${session.student_name}`
+        : 'English Lesson / Lekcja angielskiego';
+    const description = [
+        session.notes ? `Notes: ${session.notes}` : '',
+        session.teacher_name ? `Teacher: ${session.teacher_name}` : '',
+        session.student_name ? `Student: ${session.student_name}` : '',
+        `Duration: ${durationMin} minutes`
+    ].filter(Boolean).join('\\n');
+
+    const ics = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//IntakeEval//EN',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'BEGIN:VEVENT',
+        `UID:session-${session.id}@intakeeval`,
+        `DTSTAMP:${formatICSDate(new Date())}`,
+        `DTSTART:${formatICSDate(start)}`,
+        `DTEND:${formatICSDate(end)}`,
+        `SUMMARY:${summary}`,
+        `DESCRIPTION:${description}`,
+        'END:VEVENT',
+        'END:VCALENDAR'
+    ].join('\r\n');
+
+    return ics;
+}
+
+function downloadICS(session) {
+    const ics = generateICS(session);
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lesson-${session.id}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// Make it available globally for onclick handlers
+window.downloadICS = downloadICS;
+
 async function loadStudents() {
+    const container = document.getElementById('student-list');
+    // Show skeleton loading state
+    container.innerHTML = renderStudentListSkeleton(3);
+
     try {
         // Build query string from filter state
         const params = new URLSearchParams();
@@ -39,7 +133,7 @@ async function loadStudents() {
             selectStudent(autoId);
         }
     } catch (err) {
-        document.getElementById('student-list').innerHTML =
+        container.innerHTML =
             '<p>Error loading students: ' + err.message + '</p>';
     }
 }
@@ -126,24 +220,39 @@ function renderStudentList() {
     if (students.length === 0) {
         const hasFilters = filterState.q || filterState.needs_assessment || filterState.inactive_days > 0;
         if (hasFilters) {
-            container.innerHTML = '<p class="meta">No students match the current filters. / Brak uczniów pasujących do filtrów.</p>';
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🔍</div>
+                    <h3>No students match your filters</h3>
+                    <p>Brak uczniów pasujących do filtrów</p>
+                    <p class="empty-state-hint">Try adjusting your search or filters above.</p>
+                </div>
+            `;
         } else {
-            container.innerHTML = '<p>No students yet. <a href="index.html">Add one</a>.</p>';
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">👥</div>
+                    <h3>No students yet</h3>
+                    <p>Brak uczniów</p>
+                    <a href="index.html" class="btn btn-primary btn-sm">+ Add First Student / Dodaj ucznia</a>
+                    <p class="empty-state-hint">Students will appear here once they complete the intake form.</p>
+                </div>
+            `;
         }
         return;
     }
 
     container.innerHTML = students.map(s => {
-        // Build status indicators
+        // Build status indicators with unified badge classes
         let badges = '';
         if (!s.last_assessment_at) {
-            badges += '<span class="status-badge needs-assessment">Needs Assessment</span>';
+            badges += '<span class="session-badge session-badge-requested">Needs Assessment</span>';
         }
         if (s.next_session_at) {
             const sessionDate = new Date(s.next_session_at);
             const dateStr = sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-            const statusClass = s.session_status === 'confirmed' ? 'confirmed' : 'requested';
-            badges += `<span class="status-badge ${statusClass}">Session: ${dateStr}</span>`;
+            const statusClass = s.session_status === 'confirmed' ? 'session-badge-confirmed' : 'session-badge-requested';
+            badges += `<span class="session-badge ${statusClass}">Session: ${dateStr}</span>`;
         }
 
         return `
@@ -779,7 +888,8 @@ function escapeHtml(text) {
 async function loadTeacherSessions() {
     var listEl = document.getElementById('teacher-sessions-list');
     if (!listEl) return; // not on teacher dashboard
-    listEl.innerHTML = '<p class="meta">Loading...</p>';
+    // Show skeleton loading
+    listEl.innerHTML = renderSessionListSkeleton(2);
 
     try {
         var resp = await apiFetch('/api/teacher/sessions');
@@ -791,7 +901,15 @@ async function loadTeacherSessions() {
         var sessions = data.sessions || [];
 
         if (sessions.length === 0) {
-            listEl.innerHTML = '<p class="meta">No session requests. / Brak prosb o sesje.</p>';
+            listEl.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📅</div>
+                    <h3>No pending requests</h3>
+                    <p>Brak oczekujących próśb</p>
+                    <p class="empty-state-hint">Tell students to request a time via their dashboard.<br>
+                       <em>Uczniowie mogą poprosić o sesję przez swój panel.</em></p>
+                </div>
+            `;
             return;
         }
 
@@ -799,20 +917,28 @@ async function loadTeacherSessions() {
             var dt = new Date(s.scheduled_at);
             var dateStr = dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
             var timeStr = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-            var statusColor = s.status === 'confirmed' ? '#27ae60'
-                : s.status === 'requested' ? '#f39c12'
-                : s.status === 'cancelled' ? '#c0392b' : '#888';
-            var statusLabel = s.status.charAt(0).toUpperCase() + s.status.slice(1);
+
+            // Use unified badge classes
+            var badgeClass = s.status === 'confirmed' ? 'session-badge-confirmed'
+                : s.status === 'requested' ? 'session-badge-requested'
+                : s.status === 'cancelled' ? 'session-badge-cancelled' : '';
+            var statusLabel = s.status === 'confirmed' ? 'Confirmed'
+                : s.status === 'requested' ? 'Pending'
+                : s.status === 'cancelled' ? 'Cancelled'
+                : s.status.charAt(0).toUpperCase() + s.status.slice(1);
 
             var actions = '';
             if (s.status === 'requested') {
-                actions = '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;">' +
-                    '<button class="btn btn-sm btn-primary" onclick="confirmSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;">Confirm / Potwierdz</button>' +
+                actions = '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap;">' +
+                    '<button class="btn btn-sm btn-primary" onclick="confirmSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;">Confirm / Potwierdź</button>' +
                     '<button class="btn btn-sm" onclick="cancelSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:#e74c3c;color:white;">Cancel / Anuluj</button>' +
                     '</div>';
             } else if (s.status === 'confirmed') {
-                actions = '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;">' +
+                // Store session data for ICS download
+                var sessionData = JSON.stringify(s).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                actions = '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap;">' +
                     '<button class="btn btn-sm btn-secondary" onclick="openNotesModal(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;">Log Notes / Zapisz notatki</button>' +
+                    '<button class="btn-calendar" onclick=\'downloadICS(' + JSON.stringify(s) + ')\'><span class="btn-calendar-icon"></span> Add to Calendar</button>' +
                     '<button class="btn btn-sm" onclick="cancelSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:#e74c3c;color:white;">Cancel / Anuluj</button>' +
                     '</div>';
             }
@@ -825,7 +951,7 @@ async function loadTeacherSessions() {
                 '<br><span class="meta">' + dateStr + ' at ' + timeStr + ' &middot; ' + s.duration_min + ' min</span>' +
                 (s.notes ? '<br><span class="meta" style="font-style:italic;">' + escapeHtml(s.notes) + '</span>' : '') +
                 '</div>' +
-                '<span style="font-weight:600;color:' + statusColor + ';font-size:0.85rem;white-space:nowrap;">' + statusLabel + '</span>' +
+                '<span class="session-badge ' + badgeClass + '">' + statusLabel + '</span>' +
                 '</div>' +
                 actions +
                 '</div>';
