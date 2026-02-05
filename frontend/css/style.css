@@ -2571,3 +2571,48 @@ body.theme-blue .form-section h2 { border-bottom-color: #1565c0; }
     background: #d5f5e3;
     color: #1e8449;
 }
+
+/* ===== Progress Summary in Overview ===== */
+.progress-stats {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.stat-box {
+    background: #f8f9fa;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    text-align: center;
+    min-width: 100px;
+}
+.stat-value {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #2c3e50;
+}
+.stat-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #7f8c8d;
+    margin-top: 0.2rem;
+}
+.progress-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #eee;
+}
+.progress-entry:last-child { border-bottom: none; }
+.progress-title { flex: 1; font-size: 0.9rem; }
+.progress-score {
+    font-weight: 600;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+.progress-score.score-high { background: #d5f5e3; color: #1e8449; }
+.progress-score.score-mid { background: #fef9e7; color: #b7950b; }
+.progress-score.score-low { background: #fadbd8; color: #943126; }
+.progress-date { font-size: 0.75rem; min-width: 50px; text-align: right; }

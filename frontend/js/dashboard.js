@@ -197,12 +197,14 @@ async function selectStudent(id) {
 async function loadOverview() {
     const intakeEl = document.getElementById('overview-intake-content');
     const assessmentEl = document.getElementById('overview-assessment-content');
+    const progressEl = document.getElementById('overview-progress-content');
     const activityEl = document.getElementById('overview-activity-content');
 
     if (!intakeEl || !assessmentEl || !activityEl) return; // elements not present
 
     intakeEl.innerHTML = '<p class="meta">Loading...</p>';
     assessmentEl.innerHTML = '<p class="meta">Loading...</p>';
+    if (progressEl) progressEl.innerHTML = '<p class="meta">Loading...</p>';
     activityEl.innerHTML = '<p class="meta">Loading...</p>';
 
     try {
@@ -211,6 +213,7 @@ async function loadOverview() {
             const err = await resp.json().catch(() => ({}));
             intakeEl.innerHTML = `<p class="meta">Error: ${err.detail || 'Could not load overview'}</p>`;
             assessmentEl.innerHTML = '<p class="meta">--</p>';
+            if (progressEl) progressEl.innerHTML = '<p class="meta">--</p>';
             activityEl.innerHTML = '<p class="meta">--</p>';
             return;
         }
@@ -218,6 +221,7 @@ async function loadOverview() {
         const data = await resp.json();
         renderIntakeSummary(data.student, intakeEl);
         renderAssessmentSummary(data.latest_assessment, assessmentEl);
+        if (progressEl) renderProgressSummary(data.progress, progressEl);
         renderActivityFeed(data.activity, activityEl);
     } catch (err) {
         intakeEl.innerHTML = `<p class="meta">Error: ${err.message}</p>`;
@@ -301,6 +305,57 @@ function renderActivityFeed(activity, container) {
 
         return `<div class="activity-item"><span class="activity-icon">${icon}</span><span class="activity-detail">${escapeHtml(detail)}</span><span class="activity-time meta">${at}</span></div>`;
     }).join('');
+
+    container.innerHTML = html;
+}
+
+function renderProgressSummary(progress, container) {
+    if (!progress || !progress.entries || progress.entries.length === 0) {
+        container.innerHTML = '<p class="meta">No lessons completed yet. / Brak ukończonych lekcji.</p>';
+        return;
+    }
+
+    const entries = progress.entries;
+    const avgScore = progress.avg_score_last_10 || 0;
+    const lastActivity = progress.last_progress_at
+        ? new Date(progress.last_progress_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        : 'N/A';
+
+    // Stats row
+    let html = `
+        <div class="progress-stats">
+            <div class="stat-box">
+                <span class="stat-value">${avgScore}%</span>
+                <span class="stat-label">Avg Score (Last 10)</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-value">${entries.length}</span>
+                <span class="stat-label">Lessons Completed</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-value">${lastActivity}</span>
+                <span class="stat-label">Last Activity</span>
+            </div>
+        </div>
+    `;
+
+    // Last 10 lessons list
+    html += '<div class="progress-list" style="margin-top:0.75rem;">';
+    html += '<strong>Last 10 Lessons:</strong>';
+    html += '<div style="margin-top:0.5rem;">';
+    entries.forEach(e => {
+        const date = e.completed_at ? new Date(e.completed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+        const scoreClass = e.score >= 80 ? 'score-high' : e.score >= 60 ? 'score-mid' : 'score-low';
+        const title = e.lesson_title ? escapeHtml(e.lesson_title) : `Lesson #${e.lesson_id}`;
+        html += `
+            <div class="progress-entry">
+                <span class="progress-title">${title}</span>
+                <span class="progress-score ${scoreClass}">${Math.round(e.score)}%</span>
+                <span class="progress-date meta">${date}</span>
+            </div>
+        `;
+    });
+    html += '</div></div>';
 
     container.innerHTML = html;
 }

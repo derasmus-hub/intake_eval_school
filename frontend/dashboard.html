@@ -65,13 +65,33 @@
             </div>
 
             <div class="tabs">
-                <button class="tab active" onclick="switchTab('profile')">Profile / Profil</button>
+                <button class="tab active" onclick="switchTab('overview')">Overview / Przegląd</button>
+                <button class="tab" onclick="switchTab('profile')">Profile / Profil</button>
                 <button class="tab" onclick="switchTab('lessons')">Lessons / Lekcje</button>
                 <button class="tab" onclick="switchTab('progress')">Progress / Postępy</button>
                 <button class="tab" onclick="switchTab('analytics')">Analytics / Analityka</button>
             </div>
 
-            <div id="tab-profile" class="tab-content active">
+            <div id="tab-overview" class="tab-content active">
+                <div class="detail-panel" id="overview-intake">
+                    <h3>Intake Summary / Podsumowanie</h3>
+                    <div id="overview-intake-content"><p class="meta">Loading...</p></div>
+                </div>
+                <div class="detail-panel" id="overview-assessment" style="margin-top:1rem;">
+                    <h3>Latest Assessment / Ostatnia ocena</h3>
+                    <div id="overview-assessment-content"><p class="meta">Loading...</p></div>
+                </div>
+                <div class="detail-panel" id="overview-progress" style="margin-top:1rem;">
+                    <h3>Recent Progress / Ostatnie postępy</h3>
+                    <div id="overview-progress-content"><p class="meta">Loading...</p></div>
+                </div>
+                <div class="detail-panel" id="overview-activity" style="margin-top:1rem;">
+                    <h3>Recent Activity / Ostatnia aktywność</h3>
+                    <div id="overview-activity-content"><p class="meta">Loading...</p></div>
+                </div>
+            </div>
+
+            <div id="tab-profile" class="tab-content">
                 <div class="detail-panel">
                     <div id="profile-content">
                         <p>No diagnostic profile yet.</p>

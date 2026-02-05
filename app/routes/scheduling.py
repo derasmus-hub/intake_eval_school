@@ -122,6 +122,106 @@ async def student_request_session(body: SessionRequest, request: Request):
         await db.close()
 
 
+class StudentProgressEntry(BaseModel):
+    lesson_id: int
+    score: float
+    skill_tags: list[str] | None = None
+    notes: str | None = None
+
+
+@router.post("/api/student/me/progress")
+async def student_submit_progress(body: StudentProgressEntry, request: Request):
+    """Student submits their own lesson progress (token-bound, cannot submit for others)."""
+    user = await _require_student(request)
+    student_id = user["id"]
+
+    # Validate score
+    if body.score < 0 or body.score > 100:
+        raise HTTPException(status_code=422, detail="score must be between 0 and 100")
+
+    # Validate lesson_id exists
+    db = await get_db()
+    try:
+        cur = await db.execute("SELECT id FROM lessons WHERE id = ?", (body.lesson_id,))
+        if not await cur.fetchone():
+            raise HTTPException(status_code=404, detail="Lesson not found")
+
+        # Prevent duplicate submissions
+        cur = await db.execute(
+            "SELECT id FROM progress WHERE lesson_id = ? AND student_id = ?",
+            (body.lesson_id, student_id),
+        )
+        if await cur.fetchone():
+            raise HTTPException(status_code=409, detail="Progress already submitted for this lesson")
+
+        # Insert progress record
+        skill_tags_json = None
+        if body.skill_tags:
+            import json
+            skill_tags_json = json.dumps(body.skill_tags)
+
+        cur = await db.execute(
+            """INSERT INTO progress (student_id, lesson_id, score, notes, areas_improved, areas_struggling)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (student_id, body.lesson_id, body.score, body.notes, skill_tags_json, None),
+        )
+        await db.commit()
+        progress_id = cur.lastrowid
+
+        # Update lesson status to completed
+        await db.execute("UPDATE lessons SET status = 'completed' WHERE id = ?", (body.lesson_id,))
+        await db.commit()
+
+        return {
+            "id": progress_id,
+            "student_id": student_id,
+            "lesson_id": body.lesson_id,
+            "score": body.score,
+            "message": "Progress recorded",
+        }
+    finally:
+        await db.close()
+
+
+@router.get("/api/student/me/progress")
+async def student_get_progress(request: Request):
+    """Student retrieves their own progress summary."""
+    user = await _require_student(request)
+    student_id = user["id"]
+
+    db = await get_db()
+    try:
+        cur = await db.execute(
+            """SELECT id, lesson_id, score, notes, areas_improved, completed_at
+               FROM progress WHERE student_id = ?
+               ORDER BY completed_at DESC LIMIT 20""",
+            (student_id,),
+        )
+        rows = await cur.fetchall()
+
+        entries = []
+        total_score = 0.0
+        for row in rows:
+            entries.append({
+                "id": row["id"],
+                "lesson_id": row["lesson_id"],
+                "score": row["score"],
+                "completed_at": row["completed_at"],
+            })
+            total_score += row["score"] or 0
+
+        avg_score = round(total_score / len(entries), 1) if entries else 0
+
+        return {
+            "student_id": student_id,
+            "total_lessons": len(entries),
+            "average_score": avg_score,
+            "entries": entries,
+        }
+    finally:
+        await db.close()
+
+
 # ── Teacher endpoints ────────────────────────────────────────────────
 
 @router.get("/api/teacher/sessions")
@@ -538,10 +638,38 @@ async def teacher_student_overview(student_id: int, request: Request):
         activity.sort(key=lambda x: x.get('at') or '', reverse=True)
         activity = activity[:20]
 
+        # 4. Last 10 progress entries with stats
+        cur = await db.execute("""
+            SELECT p.id, p.lesson_id, p.score, p.completed_at,
+                   l.objective as lesson_title
+            FROM progress p
+            LEFT JOIN lessons l ON l.id = p.lesson_id
+            WHERE p.student_id = ?
+            ORDER BY p.completed_at DESC
+            LIMIT 10
+        """, (student_id,))
+        progress_rows = await cur.fetchall()
+        progress_entries = [dict(row) for row in progress_rows]
+
+        # Compute stats
+        if progress_entries:
+            scores = [p["score"] for p in progress_entries if p["score"] is not None]
+            avg_score_last_10 = round(sum(scores) / len(scores), 1) if scores else 0
+            last_progress_at = progress_entries[0]["completed_at"] if progress_entries else None
+        else:
+            avg_score_last_10 = 0
+            last_progress_at = None
+
         return {
             "student": student,
             "latest_assessment": latest_assessment,
-            "activity": activity
+            "activity": activity,
+            "progress": {
+                "entries": progress_entries,
+                "avg_score_last_10": avg_score_last_10,
+                "last_progress_at": last_progress_at,
+                "total_completed": len(progress_entries),
+            }
         }
     finally:
         await db.close()
