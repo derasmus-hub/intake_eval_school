@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     env: str = "dev"
     # CORS origins for prod (comma-separated)
     cors_origins: str = ""
+    # Admin secret for protected admin endpoints (teacher invites, etc.)
+    admin_secret: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
@@ -30,6 +32,16 @@ def _load_settings() -> Settings:
 
     if len(s.jwt_secret) < 32:
         print("ERROR: JWT_SECRET must be at least 32 characters.", file=sys.stderr)
+        sys.exit(1)
+
+    # ADMIN_SECRET is required for admin endpoints
+    if not s.admin_secret:
+        print("ERROR: ADMIN_SECRET environment variable is required but not set.", file=sys.stderr)
+        print("Set ADMIN_SECRET to a secure random string (at least 16 characters).", file=sys.stderr)
+        sys.exit(1)
+
+    if len(s.admin_secret) < 16:
+        print("ERROR: ADMIN_SECRET must be at least 16 characters.", file=sys.stderr)
         sys.exit(1)
 
     return s

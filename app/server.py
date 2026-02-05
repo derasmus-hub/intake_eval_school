@@ -70,6 +70,7 @@ from app.routes.leaderboard import router as leaderboard_router
 from app.routes.games import router as games_router
 from app.routes.gamification import router as gamification_router
 from app.routes.scheduling import router as scheduling_router
+from app.routes.admin import router as admin_router
 
 app.include_router(auth_router)
 app.include_router(intake_router)
@@ -87,6 +88,7 @@ app.include_router(leaderboard_router)
 app.include_router(games_router)
 app.include_router(gamification_router)
 app.include_router(scheduling_router)
+app.include_router(admin_router)
 
 
 @app.get("/health")

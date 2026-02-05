@@ -145,6 +145,11 @@ def require_role(*allowed_roles: str):
 
 @router.post("/register")
 async def register(body: RegisterRequest, request: Request):
+    """Public registration endpoint - STUDENTS ONLY.
+
+    Any role field in the request body is ignored; role is always 'student'.
+    Teachers must register via /api/auth/teacher/register with an invite token.
+    """
     _check_rate_limit(request)
     db = await get_db()
     try:
@@ -155,8 +160,8 @@ async def register(body: RegisterRequest, request: Request):
 
         pw_hash = hash_password(body.password)
 
-        # Validate role
-        role = body.role if body.role in ("student", "teacher") else "student"
+        # Force role to student - ignore any role field in request
+        role = "student"
 
         cursor = await db.execute(
             """INSERT INTO students (name, email, password_hash, age, filler, role)
@@ -217,3 +222,91 @@ async def login(body: LoginRequest, request: Request):
 async def get_me(request: Request):
     user = await get_current_user(request)
     return user
+
+
+# ── Teacher Registration via Invite ─────────────────────────────────
+
+class TeacherRegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    invite_token: str
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < MIN_PASSWORD_LENGTH:
+            raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+        return v
+
+
+@router.post("/teacher/register")
+async def teacher_register(body: TeacherRegisterRequest, request: Request):
+    """Register as a teacher using an invite token.
+
+    The invite token must be valid (not expired, not used) and the email
+    must match the invited email (case-insensitive).
+    """
+    _check_rate_limit(request)
+    db = await get_db()
+    try:
+        # Lookup invite by token
+        cursor = await db.execute(
+            "SELECT id, email, expires_at, used_at FROM teacher_invites WHERE token = ?",
+            (body.invite_token,),
+        )
+        invite = await cursor.fetchone()
+
+        if not invite:
+            raise HTTPException(status_code=400, detail="Invalid invite token")
+
+        # Check if already used
+        if invite["used_at"]:
+            raise HTTPException(status_code=400, detail="Invite token has already been used")
+
+        # Check expiry
+        expires_at = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
+        if datetime.now(expires_at.tzinfo if expires_at.tzinfo else None) > expires_at:
+            raise HTTPException(status_code=400, detail="Invite token has expired")
+
+        # Verify email matches (case-insensitive)
+        if body.email.lower() != invite["email"].lower():
+            raise HTTPException(
+                status_code=400,
+                detail="Email does not match the invited email address"
+            )
+
+        # Check email not already registered
+        cursor = await db.execute("SELECT id FROM students WHERE email = ?", (body.email.lower(),))
+        if await cursor.fetchone():
+            raise HTTPException(status_code=409, detail="Email already registered")
+
+        pw_hash = hash_password(body.password)
+
+        # Create teacher account
+        cursor = await db.execute(
+            """INSERT INTO students (name, email, password_hash, filler, role)
+               VALUES (?, ?, ?, 'teacher', 'teacher')""",
+            (body.name, body.email.lower(), pw_hash),
+        )
+        await db.commit()
+        teacher_id = cursor.lastrowid
+
+        # Mark invite as used
+        await db.execute(
+            "UPDATE teacher_invites SET used_at = ? WHERE id = ?",
+            (datetime.utcnow().isoformat(), invite["id"]),
+        )
+        await db.commit()
+
+        token = create_token(teacher_id, body.email.lower(), "teacher")
+
+        return {
+            "token": token,
+            "student_id": teacher_id,
+            "name": body.name,
+            "email": body.email.lower(),
+            "role": "teacher",
+        }
+    finally:
+        await db.close()

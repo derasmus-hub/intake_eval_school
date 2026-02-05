@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - Rejestracja</title>
+    <title>Teacher Registration - Rejestracja nauczyciela</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -12,17 +12,18 @@
             <a href="login.html" class="nav-brand">IntakeEval</a>
             <div class="nav-links">
                 <a href="login.html">Login</a>
-                <a href="register.html" class="active">Register</a>
+                <a href="register.html">Register</a>
             </div>
         </nav>
 
         <div class="form-section" style="max-width:400px;margin:2rem auto;">
-            <h2>Register / Rejestracja</h2>
-            <p class="section-desc">Create your account to start learning. / Utworz konto, aby rozpoczac nauke.</p>
+            <h2>Teacher Registration / Rejestracja nauczyciela</h2>
+            <p class="section-desc">Register as a teacher using your invite token. / Zarejestruj sie jako nauczyciel uzywajac tokenu zaproszenia.</p>
 
             <div id="error-message" class="error-banner hidden"></div>
+            <div id="success-message" class="success-banner hidden"></div>
 
-            <form id="register-form">
+            <form id="teacher-register-form">
                 <div class="form-group">
                     <label for="name">Name / Imie *</label>
                     <input type="text" id="name" required placeholder="Your name">
@@ -30,6 +31,7 @@
                 <div class="form-group">
                     <label for="email">Email *</label>
                     <input type="email" id="email" required placeholder="your@email.com">
+                    <small class="form-hint">Must match the invited email address / Musi pasowac do zaproszonego adresu email</small>
                 </div>
                 <div class="form-group">
                     <label for="password">Password / Haslo *</label>
@@ -40,21 +42,22 @@
                     <input type="password" id="password-confirm" required placeholder="Repeat password" minlength="8">
                 </div>
                 <div class="form-group">
-                    <label for="age">Age / Wiek</label>
-                    <input type="number" id="age" min="4" max="99" placeholder="Optional">
+                    <label for="invite-token">Invite Token / Token zaproszenia *</label>
+                    <input type="text" id="invite-token" required placeholder="Paste your invite token">
+                    <small class="form-hint">Provided by administrator / Dostarczony przez administratora</small>
                 </div>
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary" id="register-btn">Register / Zarejestruj</button>
+                    <button type="submit" class="btn btn-primary" id="register-btn">Register as Teacher / Zarejestruj jako nauczyciel</button>
                 </div>
             </form>
 
             <p style="text-align:center;margin-top:1rem;">
+                Not a teacher? / Nie jestes nauczycielem?
+                <a href="register.html">Student Registration / Rejestracja ucznia</a>
+            </p>
+            <p style="text-align:center;margin-top:0.5rem;">
                 Already have an account? / Masz juz konto?
                 <a href="login.html">Login / Zaloguj sie</a>
-            </p>
-            <p style="text-align:center;margin-top:0.5rem;font-size:0.9rem;">
-                Teacher with invite? / Nauczyciel z zaproszeniem?
-                <a href="teacher_register.html">Register as Teacher / Zarejestruj jako nauczyciel</a>
             </p>
         </div>
 
@@ -68,23 +71,37 @@
     <script src="js/nav.js"></script>
     <script src="js/app.js"></script>
     <script>
-        // If already logged in, redirect to role-appropriate dashboard
+        // Pre-fill email and token from URL parameters if provided
+        const urlParams = new URLSearchParams(window.location.search);
+        const preEmail = urlParams.get('email');
+        const preToken = urlParams.get('token');
+        if (preEmail) document.getElementById('email').value = preEmail;
+        if (preToken) document.getElementById('invite-token').value = preToken;
+
+        // If already logged in as teacher, redirect to dashboard
         const token = localStorage.getItem('auth_token');
         if (token) {
             apiFetch('/api/auth/me', {
                 headers: { 'Authorization': 'Bearer ' + token }
             }).then(r => {
-                if (r.ok) APP.goHomeByRole();
+                if (r.ok) return r.json();
+                throw new Error('Not authenticated');
+            }).then(user => {
+                if (user.role === 'teacher') {
+                    window.location.href = 'dashboard.html';
+                }
             }).catch(() => {});
         }
 
-        document.getElementById('register-form').addEventListener('submit', async (e) => {
+        document.getElementById('teacher-register-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('register-btn');
             const errEl = document.getElementById('error-message');
+            const successEl = document.getElementById('success-message');
             btn.disabled = true;
             btn.textContent = 'Registering...';
             errEl.classList.add('hidden');
+            successEl.classList.add('hidden');
 
             const password = document.getElementById('password').value;
             const confirm = document.getElementById('password-confirm').value;
@@ -93,19 +110,27 @@
                 errEl.textContent = 'Passwords do not match. / Hasla nie sa zgodne.';
                 errEl.classList.remove('hidden');
                 btn.disabled = false;
-                btn.textContent = 'Register / Zarejestruj';
+                btn.textContent = 'Register as Teacher / Zarejestruj jako nauczyciel';
+                return;
+            }
+
+            if (password.length < 8) {
+                errEl.textContent = 'Password must be at least 8 characters. / Haslo musi miec co najmniej 8 znakow.';
+                errEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Register as Teacher / Zarejestruj jako nauczyciel';
                 return;
             }
 
             try {
-                const resp = await apiFetch('/api/auth/register', {
+                const resp = await apiFetch('/api/auth/teacher/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         name: document.getElementById('name').value,
                         email: document.getElementById('email').value,
                         password: password,
-                        age: document.getElementById('age').value ? parseInt(document.getElementById('age').value) : null,
+                        invite_token: document.getElementById('invite-token').value.trim(),
                     }),
                 });
 
@@ -114,7 +139,7 @@
                     errEl.textContent = err.detail || 'Registration failed';
                     errEl.classList.remove('hidden');
                     btn.disabled = false;
-                    btn.textContent = 'Register / Zarejestruj';
+                    btn.textContent = 'Register as Teacher / Zarejestruj jako nauczyciel';
                     return;
                 }
 
@@ -123,15 +148,20 @@
                 localStorage.setItem('auth_student_id', data.student_id);
                 localStorage.setItem('auth_student_name', data.name);
                 localStorage.setItem('auth_student_email', data.email);
+                localStorage.setItem('auth_role', data.role);
                 STATE.setStudentId(data.student_id);
 
-                // Redirect to assessment for new users
-                window.location.href = `assessment.html?student_id=${data.student_id}`;
+                // Show success and redirect to teacher dashboard
+                successEl.textContent = 'Registration successful! Redirecting to dashboard...';
+                successEl.classList.remove('hidden');
+                setTimeout(() => {
+                    window.location.href = 'dashboard.html';
+                }, 1500);
             } catch (err) {
                 errEl.textContent = 'Network error: ' + err.message;
                 errEl.classList.remove('hidden');
                 btn.disabled = false;
-                btn.textContent = 'Register / Zarejestruj';
+                btn.textContent = 'Register as Teacher / Zarejestruj jako nauczyciel';
             }
         });
     </script>

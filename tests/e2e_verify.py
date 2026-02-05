@@ -24,16 +24,18 @@ FAIL = 0
 
 def rand_email():
     tag = "".join(random.choices(string.ascii_lowercase, k=6))
-    return f"test_{tag}@e2e.local"
+    return f"test_{tag}@example.com"
 
 
-def api(method, path, body=None, token=None):
+def api(method, path, body=None, token=None, admin_secret=None):
     """Minimal HTTP client using only stdlib."""
     url = BASE + path
     data = json.dumps(body).encode() if body else None
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    if admin_secret:
+        headers["X-Admin-Secret"] = admin_secret
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -46,6 +48,10 @@ def api(method, path, body=None, token=None):
             return e.code, {"detail": body_text[:300]}
     except Exception as e:
         return 0, {"detail": str(e)}
+
+
+# Admin secret for testing - must match ADMIN_SECRET in .env
+ADMIN_SECRET = "dev-admin-secret-change-in-prod"
 
 
 def check(label, ok, detail=""):
@@ -67,7 +73,7 @@ check("GET /health returns 200", code == 200, f"status={code}")
 check("/health body has status=ok", data.get("status") == "ok", json.dumps(data))
 
 # ── 2. Register ──────────────────────────────────────────────────
-print("\n=== 2. Register ===")
+print("\n=== 2. Register (Students) ===")
 student_email = rand_email()
 teacher_email = rand_email()
 
@@ -84,17 +90,96 @@ check("Student token received", bool(student_token))
 check("Student ID received", student_id is not None, f"id={student_id}")
 check("Role is student", data.get("role") == "student", f"role={data.get('role')}")
 
+# Trying to register with role=teacher should be forced to student
 code, data = api("POST", "/api/auth/register", {
+    "name": "Sneaky Teacher",
+    "email": rand_email(),
+    "password": "test1234",
+    "role": "teacher",  # This should be ignored
+})
+check("Register with role=teacher forced to student", code == 200, f"status={code}")
+check("Role override: still student", data.get("role") == "student", f"role={data.get('role')}")
+
+# ── 2b. Teacher Registration via Invite ──────────────────────────
+print("\n=== 2b. Teacher Registration (Invite-Only) ===")
+
+# First, create a teacher invite using admin endpoint
+code, data = api("POST", "/api/admin/teacher-invites", {
+    "email": teacher_email,
+    "expires_days": 7,
+}, admin_secret=ADMIN_SECRET)
+check("Create teacher invite returns 200", code == 200, f"status={code}")
+invite_token = data.get("token", "")
+check("Invite token received", bool(invite_token), f"token={invite_token[:10]}..." if invite_token else "")
+check("Invite URL received", bool(data.get("invite_url")), f"url={data.get('invite_url')}")
+
+# Test admin endpoint without secret (should fail)
+code, data = api("POST", "/api/admin/teacher-invites", {
+    "email": rand_email(),
+})
+check("Admin endpoint without secret returns 403", code == 403, f"status={code}")
+
+# Test admin endpoint with wrong secret
+code, data = api("POST", "/api/admin/teacher-invites", {
+    "email": rand_email(),
+}, admin_secret="wrong-secret")
+check("Admin endpoint with wrong secret returns 403", code == 403, f"status={code}")
+
+# Now register teacher using the invite token
+code, data = api("POST", "/api/auth/teacher/register", {
     "name": "E2E Teacher",
     "email": teacher_email,
     "password": "test1234",
-    "role": "teacher",
+    "invite_token": invite_token,
 })
-check("Register teacher returns 200", code == 200, f"status={code}")
+check("Teacher register with invite returns 200", code == 200, f"status={code}")
 teacher_token = data.get("token", "")
 teacher_id = data.get("student_id")
 check("Teacher token received", bool(teacher_token))
 check("Role is teacher", data.get("role") == "teacher", f"role={data.get('role')}")
+
+# Try to reuse the same invite token (should fail)
+code, data = api("POST", "/api/auth/teacher/register", {
+    "name": "Another Teacher",
+    "email": teacher_email,
+    "password": "test1234",
+    "invite_token": invite_token,
+})
+check("Reused invite token rejected", code in [400, 409], f"status={code}")
+
+# Try to register teacher with invalid token
+code, data = api("POST", "/api/auth/teacher/register", {
+    "name": "Bad Token Teacher",
+    "email": rand_email(),
+    "password": "test1234",
+    "invite_token": "invalid-token-12345",
+})
+check("Invalid invite token rejected", code == 400, f"status={code}")
+
+# Try to register teacher with mismatched email
+another_invite_email = rand_email()
+code, data = api("POST", "/api/admin/teacher-invites", {
+    "email": another_invite_email,
+    "expires_days": 1,
+}, admin_secret=ADMIN_SECRET)
+another_invite_token = data.get("token", "")
+
+code, data = api("POST", "/api/auth/teacher/register", {
+    "name": "Mismatched Teacher",
+    "email": rand_email(),  # Different from invited email
+    "password": "test1234",
+    "invite_token": another_invite_token,
+})
+check("Mismatched email rejected", code == 400, f"status={code}")
+
+# List invites as admin
+code, data = api("GET", "/api/admin/teacher-invites", admin_secret=ADMIN_SECRET)
+check("List invites returns 200", code == 200, f"status={code}")
+invites = data.get("invites", [])
+check("Invites list is array", isinstance(invites, list), f"count={len(invites)}")
+# Find our used invite
+used_invite = next((i for i in invites if i.get("email") == teacher_email.lower()), None)
+check("Used invite shows is_used=True", used_invite and used_invite.get("is_used") == True, f"invite={used_invite}")
 
 # Duplicate registration should fail
 code, data = api("POST", "/api/auth/register", {
@@ -640,6 +725,22 @@ code, data = api("POST", "/api/auth/register", {
     "role": "student",
 })
 check("8-char password accepted", code == 200, f"status={code}")
+
+# Teacher registration also enforces password policy
+teacher_pw_test_email = rand_email()
+code, data = api("POST", "/api/admin/teacher-invites", {
+    "email": teacher_pw_test_email,
+    "expires_days": 1,
+}, admin_secret=ADMIN_SECRET)
+pw_test_invite_token = data.get("token", "")
+
+code, data = api("POST", "/api/auth/teacher/register", {
+    "name": "Short Pass Teacher",
+    "email": teacher_pw_test_email,
+    "password": "short",  # Too short
+    "invite_token": pw_test_invite_token,
+})
+check("Teacher short password rejected", code == 422, f"status={code}")
 
 # ── 15. ICS Calendar Export ───────────────────────────────────────
 print("\n=== 15. ICS Calendar Export ===")
