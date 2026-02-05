@@ -352,12 +352,26 @@ async def booking_slots(request: Request, from_date: str = "", to_date: str = ""
 # ── Teacher student overview endpoints ──────────────────────────────
 
 @router.get("/api/teacher/students")
-async def teacher_student_list(request: Request):
-    """Teacher-only: list all students with summary stats (NO email, NO password)."""
+async def teacher_student_list(
+    request: Request,
+    q: str | None = None,
+    needs_assessment: int | None = None,
+    inactive_days: int | None = None,
+    sort: str | None = None,
+):
+    """Teacher-only: list students with search, filters, and sorting (NO email, NO password).
+
+    Query params:
+    - q: search by name (case-insensitive)
+    - needs_assessment=1: only students without completed assessment
+    - inactive_days=N: only students with no activity in last N days
+    - sort: name|created_at|last_assessment_at|next_session_at (default: next_session_at asc, nulls last)
+    """
     await _require_teacher(request)
     db = await get_db()
     try:
-        cur = await db.execute("""
+        # Build base query with subqueries for derived fields
+        base_query = """
             SELECT s.id, s.name, s.age, s.current_level, s.created_at,
                    (SELECT MAX(updated_at) FROM assessments
                     WHERE student_id = s.id AND status = 'completed') as last_assessment_at,
@@ -366,11 +380,65 @@ async def teacher_student_list(request: Request):
                     ORDER BY scheduled_at LIMIT 1) as next_session_at,
                    (SELECT status FROM sessions
                     WHERE student_id = s.id AND status IN ('requested','confirmed')
-                    ORDER BY scheduled_at LIMIT 1) as session_status
+                    ORDER BY scheduled_at LIMIT 1) as session_status,
+                   (SELECT MAX(ts) FROM (
+                       SELECT MAX(updated_at) as ts FROM assessments WHERE student_id = s.id
+                       UNION ALL
+                       SELECT MAX(completed_at) as ts FROM progress WHERE student_id = s.id
+                       UNION ALL
+                       SELECT MAX(created_at) as ts FROM sessions WHERE student_id = s.id
+                   )) as last_activity_at
             FROM students s
             WHERE s.role = 'student'
-            ORDER BY s.name
-        """)
+        """
+        params = []
+
+        # Search filter
+        if q:
+            base_query += " AND LOWER(s.name) LIKE ?"
+            params.append(f"%{q.lower()}%")
+
+        # Needs assessment filter
+        if needs_assessment == 1:
+            base_query += """ AND NOT EXISTS (
+                SELECT 1 FROM assessments a
+                WHERE a.student_id = s.id AND a.status = 'completed'
+            )"""
+
+        # Inactive days filter
+        if inactive_days and inactive_days > 0:
+            base_query += """ AND (
+                SELECT MAX(ts) FROM (
+                    SELECT MAX(updated_at) as ts FROM assessments WHERE student_id = s.id
+                    UNION ALL
+                    SELECT MAX(completed_at) as ts FROM progress WHERE student_id = s.id
+                    UNION ALL
+                    SELECT MAX(created_at) as ts FROM sessions WHERE student_id = s.id
+                )
+            ) < datetime('now', ?)
+            """
+            params.append(f"-{inactive_days} days")
+
+        # Sorting
+        valid_sorts = {
+            "name": "s.name ASC",
+            "created_at": "s.created_at DESC",
+            "last_assessment_at": "last_assessment_at DESC NULLS LAST",
+            "next_session_at": "next_session_at ASC NULLS LAST",
+        }
+        if sort and sort in valid_sorts:
+            # SQLite doesn't support NULLS LAST directly, use CASE workaround
+            if "NULLS LAST" in valid_sorts[sort]:
+                col = sort
+                direction = "ASC" if "ASC" in valid_sorts[sort] else "DESC"
+                base_query += f" ORDER BY CASE WHEN {col} IS NULL THEN 1 ELSE 0 END, {col} {direction}"
+            else:
+                base_query += f" ORDER BY {valid_sorts[sort]}"
+        else:
+            # Default: next_session_at ascending, nulls last
+            base_query += " ORDER BY CASE WHEN next_session_at IS NULL THEN 1 ELSE 0 END, next_session_at ASC"
+
+        cur = await db.execute(base_query, params)
         return {"students": [dict(row) for row in await cur.fetchall()]}
     finally:
         await db.close()

@@ -450,6 +450,74 @@ activity = data.get("activity", [])
 notes_events = [e for e in activity if e.get("type") == "session_notes_updated"]
 check("Activity feed has session_notes_updated event", len(notes_events) >= 1, f"count={len(notes_events)}")
 
+# ── 12. Student Search and Filters ───────────────────────────────
+print("\n=== 12. Student Search & Filters ===")
+
+# Create two distinct students for search test
+code, data = api("POST", "/api/intake", {
+    "name": "Alice Searchable",
+    "age": 25,
+    "goals": ["business"],
+})
+check("Create Alice returns 200", code == 200, f"status={code}")
+alice_id = data.get("student_id")
+
+code, data = api("POST", "/api/intake", {
+    "name": "Bob Findable",
+    "age": 30,
+    "goals": ["travel"],
+})
+check("Create Bob returns 200", code == 200, f"status={code}")
+bob_id = data.get("student_id")
+
+# Search by name: "Alice" should return only Alice
+code, data = api("GET", "/api/teacher/students?q=alice", token=teacher_token)
+check("Search for 'alice' returns 200", code == 200, f"status={code}")
+search_results = data.get("students", [])
+alice_found = any(s.get("id") == alice_id for s in search_results)
+bob_found = any(s.get("id") == bob_id for s in search_results)
+check("Search finds Alice", alice_found, f"results={[s.get('name') for s in search_results]}")
+check("Search excludes Bob", not bob_found, f"results={[s.get('name') for s in search_results]}")
+
+# Search case-insensitive
+code, data = api("GET", "/api/teacher/students?q=BOB", token=teacher_token)
+check("Case-insensitive search returns 200", code == 200)
+search_results = data.get("students", [])
+bob_found = any(s.get("id") == bob_id for s in search_results)
+check("Search finds Bob (case-insensitive)", bob_found)
+
+# Filter: needs_assessment=1 should return Alice and Bob (neither has assessment)
+code, data = api("GET", "/api/teacher/students?needs_assessment=1", token=teacher_token)
+check("needs_assessment filter returns 200", code == 200, f"status={code}")
+needs_assessment_results = data.get("students", [])
+alice_in_needs = any(s.get("id") == alice_id for s in needs_assessment_results)
+bob_in_needs = any(s.get("id") == bob_id for s in needs_assessment_results)
+check("Alice needs assessment", alice_in_needs)
+check("Bob needs assessment", bob_in_needs)
+
+# The student who completed assessment (intake_student_id from Section 5) should NOT be in needs_assessment
+assessed_in_needs = any(s.get("id") == intake_student_id for s in needs_assessment_results)
+check("Assessed student excluded from needs_assessment", not assessed_in_needs,
+      f"intake_student_id={intake_student_id}, found={assessed_in_needs}")
+
+# Sorting: sort=name should return alphabetically
+code, data = api("GET", "/api/teacher/students?sort=name", token=teacher_token)
+check("sort=name returns 200", code == 200)
+sorted_results = data.get("students", [])
+names = [s.get("name", "") for s in sorted_results]
+is_sorted = names == sorted(names)
+check("Students sorted by name", is_sorted, f"names={names[:5]}...")
+
+# Verify no email in any student record
+code, data = api("GET", "/api/teacher/students", token=teacher_token)
+all_students = data.get("students", [])
+has_email = any("email" in s for s in all_students)
+check("No email field in student list", not has_email)
+
+# Student cannot access teacher student list
+code, data = api("GET", "/api/teacher/students", token=student_token)
+check("Student blocked from teacher students (403)", code == 403, f"status={code}")
+
 # ── Summary ──────────────────────────────────────────────────────
 print("\n" + "=" * 50)
 total = PASS + FAIL

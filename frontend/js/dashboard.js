@@ -1,10 +1,36 @@
 let currentStudentId = null;
 let students = [];
+let searchDebounceTimer = null;
+
+// Current filter/sort state
+let filterState = {
+    q: '',
+    needs_assessment: false,
+    inactive_days: 0,
+    sort: ''
+};
 
 async function loadStudents() {
     try {
-        const resp = await apiFetch('/api/students');
-        students = await resp.json();
+        // Build query string from filter state
+        const params = new URLSearchParams();
+        if (filterState.q) params.set('q', filterState.q);
+        if (filterState.needs_assessment) params.set('needs_assessment', '1');
+        if (filterState.inactive_days > 0) params.set('inactive_days', filterState.inactive_days.toString());
+        if (filterState.sort) params.set('sort', filterState.sort);
+
+        const queryStr = params.toString();
+        const url = '/api/teacher/students' + (queryStr ? '?' + queryStr : '');
+
+        const resp = await apiFetch(url);
+        if (!resp.ok) {
+            // Fallback to old endpoint for non-teachers
+            const fallbackResp = await apiFetch('/api/students');
+            students = await fallbackResp.json();
+        } else {
+            const data = await resp.json();
+            students = data.students || [];
+        }
         renderStudentList();
 
         // Auto-select the logged-in student so they see their data immediately
@@ -18,22 +44,119 @@ async function loadStudents() {
     }
 }
 
+function renderStudentFilters() {
+    const section = document.getElementById('student-list-section');
+    if (!section) return;
+
+    // Check if filters already exist
+    if (document.getElementById('student-filters')) return;
+
+    const filtersHtml = `
+        <div id="student-filters" class="student-filters">
+            <div class="filter-row">
+                <input type="text" id="student-search" placeholder="Search by name... / Szukaj po imieniu..." class="filter-search">
+                <select id="student-sort" class="filter-select">
+                    <option value="">Sort: Next Session</option>
+                    <option value="name">Sort: Name</option>
+                    <option value="created_at">Sort: Newest</option>
+                    <option value="last_assessment_at">Sort: Last Assessed</option>
+                </select>
+            </div>
+            <div class="filter-row filter-checkboxes">
+                <label class="filter-checkbox">
+                    <input type="checkbox" id="filter-needs-assessment">
+                    <span>Needs Assessment / Wymaga oceny</span>
+                </label>
+                <label class="filter-checkbox">
+                    <input type="checkbox" id="filter-inactive">
+                    <span>Inactive 14+ days / Nieaktywny 14+ dni</span>
+                </label>
+            </div>
+        </div>
+    `;
+
+    // Insert filters after the h2
+    const h2 = section.querySelector('h2');
+    if (h2) {
+        h2.insertAdjacentHTML('afterend', filtersHtml);
+        setupFilterListeners();
+    }
+}
+
+function setupFilterListeners() {
+    const searchInput = document.getElementById('student-search');
+    const sortSelect = document.getElementById('student-sort');
+    const needsAssessmentCb = document.getElementById('filter-needs-assessment');
+    const inactiveCb = document.getElementById('filter-inactive');
+
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                filterState.q = searchInput.value.trim();
+                loadStudents();
+            }, 300);
+        });
+    }
+
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            filterState.sort = sortSelect.value;
+            loadStudents();
+        });
+    }
+
+    if (needsAssessmentCb) {
+        needsAssessmentCb.addEventListener('change', () => {
+            filterState.needs_assessment = needsAssessmentCb.checked;
+            loadStudents();
+        });
+    }
+
+    if (inactiveCb) {
+        inactiveCb.addEventListener('change', () => {
+            filterState.inactive_days = inactiveCb.checked ? 14 : 0;
+            loadStudents();
+        });
+    }
+}
+
 function renderStudentList() {
     const container = document.getElementById('student-list');
     if (students.length === 0) {
-        container.innerHTML = '<p>No students yet. <a href="index.html">Add one</a>.</p>';
+        const hasFilters = filterState.q || filterState.needs_assessment || filterState.inactive_days > 0;
+        if (hasFilters) {
+            container.innerHTML = '<p class="meta">No students match the current filters. / Brak uczniów pasujących do filtrów.</p>';
+        } else {
+            container.innerHTML = '<p>No students yet. <a href="index.html">Add one</a>.</p>';
+        }
         return;
     }
 
-    container.innerHTML = students.map(s => `
-        <div class="student-card" onclick="selectStudent(${s.id})">
-            <div class="student-info">
-                <h3>${escapeHtml(s.name)}</h3>
-                <span class="meta">Age: ${s.age || 'N/A'} | Goals: ${(s.goals || []).join(', ') || 'None'}</span>
+    container.innerHTML = students.map(s => {
+        // Build status indicators
+        let badges = '';
+        if (!s.last_assessment_at) {
+            badges += '<span class="status-badge needs-assessment">Needs Assessment</span>';
+        }
+        if (s.next_session_at) {
+            const sessionDate = new Date(s.next_session_at);
+            const dateStr = sessionDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+            const statusClass = s.session_status === 'confirmed' ? 'confirmed' : 'requested';
+            badges += `<span class="status-badge ${statusClass}">Session: ${dateStr}</span>`;
+        }
+
+        return `
+            <div class="student-card" onclick="selectStudent(${s.id})">
+                <div class="student-info">
+                    <h3>${escapeHtml(s.name)}</h3>
+                    <span class="meta">Age: ${s.age || 'N/A'} | Level: ${s.current_level || 'pending'}</span>
+                    ${badges ? '<div class="student-badges">' + badges + '</div>' : ''}
+                </div>
+                <span class="level-badge">${s.current_level || '?'}</span>
             </div>
-            <span class="level-badge">${s.current_level}</span>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 async function selectStudent(id) {
@@ -798,7 +921,8 @@ async function saveSessionNotes() {
     }
 }
 
-// Load students on page load
+// Initialize filters and load students on page load
+renderStudentFilters();
 loadStudents();
 
 // Load teacher sessions if the panel exists

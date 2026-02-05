@@ -2499,3 +2499,75 @@ body.theme-blue .form-section h2 { border-bottom-color: #1565c0; }
     background: #f8f9fa;
     border-radius: 0 0 8px 8px;
 }
+
+/* ===== Student Filters ===== */
+.student-filters {
+    background: #f8f9fa;
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+.filter-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.filter-row + .filter-row { margin-top: 0.5rem; }
+.filter-search {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+.filter-search:focus {
+    outline: none;
+    border-color: #3498db;
+}
+.filter-select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    background: white;
+    cursor: pointer;
+}
+.filter-checkboxes { gap: 1rem; }
+.filter-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    color: #555;
+    cursor: pointer;
+}
+.filter-checkbox input { cursor: pointer; }
+
+/* ===== Student Status Badges ===== */
+.student-badges {
+    display: flex;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+    flex-wrap: wrap;
+}
+.status-badge {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+.status-badge.needs-assessment {
+    background: #fdebd0;
+    color: #b9770e;
+}
+.status-badge.requested {
+    background: #fef9e7;
+    color: #b7950b;
+}
+.status-badge.confirmed {
+    background: #d5f5e3;
+    color: #1e8449;
+}
