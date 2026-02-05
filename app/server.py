@@ -93,7 +93,10 @@ app.include_router(admin_router)
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "served_by": "docker" if settings.in_docker == "1" else "host",
+    }
 
 
 # Serve frontend — single static mount (must be last to avoid shadowing /api routes)

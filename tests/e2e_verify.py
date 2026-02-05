@@ -9,6 +9,7 @@ Prerequisites:
   - Fresh database (or delete intake_eval.db and restart)
 """
 
+import os
 import sys
 import json
 import urllib.request
@@ -50,8 +51,8 @@ def api(method, path, body=None, token=None, admin_secret=None):
         return 0, {"detail": str(e)}
 
 
-# Admin secret for testing - must match ADMIN_SECRET in .env
-ADMIN_SECRET = "dev-admin-secret-change-in-prod"
+# Admin secret for testing - reads from env or uses default for local dev
+ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "dev-admin-secret-change-in-prod")
 
 
 def check(label, ok, detail=""):
@@ -71,6 +72,9 @@ print("\n=== 1. Health Check ===")
 code, data = api("GET", "/health")
 check("GET /health returns 200", code == 200, f"status={code}")
 check("/health body has status=ok", data.get("status") == "ok", json.dumps(data))
+served_by = data.get("served_by", "unknown")
+print(f"  [INFO] Server is: {served_by}")
+check("/health has served_by field", served_by in ["docker", "host"], f"served_by={served_by}")
 
 # ── 2. Register ──────────────────────────────────────────────────
 print("\n=== 2. Register (Students) ===")
@@ -171,6 +175,27 @@ code, data = api("POST", "/api/auth/teacher/register", {
     "invite_token": another_invite_token,
 })
 check("Mismatched email rejected", code == 400, f"status={code}")
+
+# Try to register teacher with EXPIRED token (T6)
+expired_invite_email = rand_email()
+code, data = api("POST", "/api/admin/teacher-invites", {
+    "email": expired_invite_email,
+    "expires_seconds": 0,  # Immediately expired
+}, admin_secret=ADMIN_SECRET)
+check("Create expired invite returns 200", code == 200, f"status={code}")
+expired_invite_token = data.get("token", "")
+
+# Wait a moment to ensure expiration
+time.sleep(1)
+
+code, data = api("POST", "/api/auth/teacher/register", {
+    "name": "Expired Token Teacher",
+    "email": expired_invite_email,
+    "password": "test1234",
+    "invite_token": expired_invite_token,
+})
+check("Expired token rejected", code == 400, f"status={code}")
+check("Expired token error mentions expiration", "expir" in str(data).lower(), f"detail={data}")
 
 # List invites as admin
 code, data = api("GET", "/api/admin/teacher-invites", admin_secret=ADMIN_SECRET)

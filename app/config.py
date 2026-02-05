@@ -7,6 +7,7 @@ from pathlib import Path
 class Settings(BaseSettings):
     api_key: str = "your-openai-api-key-here"
     model_name: str = "gpt-4o-mini"
+    # Database path - can be overridden via DATABASE_PATH env var for Docker
     database_path: str = "intake_eval.db"
     # JWT_SECRET must be set via environment variable - no default
     jwt_secret: str = ""
@@ -16,6 +17,8 @@ class Settings(BaseSettings):
     cors_origins: str = ""
     # Admin secret for protected admin endpoints (teacher invites, etc.)
     admin_secret: str = ""
+    # Set to "1" when running in Docker container
+    in_docker: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

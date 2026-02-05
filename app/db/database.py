@@ -12,6 +12,10 @@ async def get_db() -> aiosqlite.Connection:
 
 
 async def init_db():
+    # Ensure parent directory exists (for Docker volume mounts)
+    db_path = Path(settings.database_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
     db = await get_db()
     try:
         schema = SCHEMA_PATH.read_text()

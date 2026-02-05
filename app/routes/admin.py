@@ -22,6 +22,8 @@ def _require_admin_secret(request: Request) -> None:
 class CreateInviteRequest(BaseModel):
     email: EmailStr
     expires_days: int = 7
+    # For testing only: override with seconds (takes precedence over days if set)
+    expires_seconds: int | None = None
 
 
 class CreateInviteResponse(BaseModel):
@@ -39,8 +41,8 @@ async def create_teacher_invite(body: CreateInviteRequest, request: Request):
     """
     _require_admin_secret(request)
 
-    # Validate expires_days
-    if body.expires_days < 1 or body.expires_days > 365:
+    # Validate expires_days (unless expires_seconds is used for testing)
+    if body.expires_seconds is None and (body.expires_days < 1 or body.expires_days > 365):
         raise HTTPException(status_code=400, detail="expires_days must be between 1 and 365")
 
     db = await get_db()
@@ -64,7 +66,10 @@ async def create_teacher_invite(body: CreateInviteRequest, request: Request):
 
         # Generate secure token
         token = secrets.token_urlsafe(32)
-        expires_at = datetime.utcnow() + timedelta(days=body.expires_days)
+        if body.expires_seconds is not None:
+            expires_at = datetime.utcnow() + timedelta(seconds=body.expires_seconds)
+        else:
+            expires_at = datetime.utcnow() + timedelta(days=body.expires_days)
 
         # Insert invite
         await db.execute(
