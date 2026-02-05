@@ -2398,3 +2398,104 @@ body.theme-blue .form-section h2 { border-bottom-color: #1565c0; }
     .sd-session-row { flex-direction: column; align-items: flex-start; gap: 0.3rem; }
     .sd-badge { margin-left: 0; }
 }
+
+/* ===== Intake Summary Chips ===== */
+.intake-summary { line-height: 1.6; }
+.intake-field { margin-bottom: 0.25rem; }
+.chip-list { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.25rem; }
+.chip {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+.chip-goal { background: #d5f5e3; color: #1e8449; }
+.chip-problem { background: #fdebd0; color: #b9770e; }
+.chip-weak { background: #fadbd8; color: #943126; }
+
+/* ===== Activity Feed ===== */
+.activity-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-icon { font-size: 1rem; flex-shrink: 0; }
+.activity-detail { flex: 1; font-size: 0.9rem; }
+.activity-time { font-size: 0.75rem; white-space: nowrap; }
+
+/* ===== Notes Modal ===== */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.visible { display: flex; }
+.modal-content {
+    background: white;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #eee;
+}
+.modal-header h3 { margin: 0; font-size: 1.1rem; }
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #7f8c8d;
+    line-height: 1;
+}
+.modal-close:hover { color: #2c3e50; }
+.modal-body { padding: 1.25rem; }
+.modal-body .form-group { margin-bottom: 1rem; }
+.modal-body .form-group:last-child { margin-bottom: 0; }
+.modal-body label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+    color: #34495e;
+}
+.modal-body textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    resize: vertical;
+}
+.modal-body textarea:focus {
+    outline: none;
+    border-color: #3498db;
+}
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid #eee;
+    background: #f8f9fa;
+    border-radius: 0 0 8px 8px;
+}

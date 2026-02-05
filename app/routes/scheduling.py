@@ -75,12 +75,13 @@ async def student_dashboard(request: Request):
 
 @router.get("/api/student/me/sessions")
 async def student_sessions(request: Request):
-    """List the student's sessions."""
+    """List the student's sessions. Includes homework/summary but NOT teacher_notes."""
     user = await _require_student(request)
     db = await get_db()
     try:
         cur = await db.execute(
             """SELECT s.id, s.scheduled_at, s.duration_min, s.status, s.notes,
+                      s.homework, s.session_summary,
                       t.name as teacher_name
                FROM sessions s
                LEFT JOIN students t ON t.id = s.teacher_id
@@ -211,6 +212,81 @@ async def teacher_cancel_session(session_id: int, request: Request):
         await db.close()
 
 
+class SessionNotesUpdate(BaseModel):
+    teacher_notes: str | None = None
+    homework: str | None = None
+    session_summary: str | None = None
+
+
+MAX_NOTES_LENGTH = 5000
+
+
+@router.post("/api/teacher/sessions/{session_id}/notes")
+async def teacher_update_session_notes(session_id: int, body: SessionNotesUpdate, request: Request):
+    """Teacher logs notes/homework/summary for a session. teacher_notes is private."""
+    user = await _require_teacher(request)
+
+    # Validate max length
+    for field_name, value in [("teacher_notes", body.teacher_notes),
+                               ("homework", body.homework),
+                               ("session_summary", body.session_summary)]:
+        if value and len(value) > MAX_NOTES_LENGTH:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{field_name} exceeds max length of {MAX_NOTES_LENGTH} characters"
+            )
+
+    db = await get_db()
+    try:
+        cur = await db.execute(
+            "SELECT id, status, student_id FROM sessions WHERE id = ?", (session_id,)
+        )
+        session = await cur.fetchone()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Update the notes fields
+        await db.execute(
+            """UPDATE sessions
+               SET teacher_notes = COALESCE(?, teacher_notes),
+                   homework = COALESCE(?, homework),
+                   session_summary = COALESCE(?, session_summary),
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?""",
+            (body.teacher_notes, body.homework, body.session_summary, session_id),
+        )
+        await db.commit()
+
+        return {
+            "id": session_id,
+            "message": "Notes updated",
+            "teacher_notes": body.teacher_notes,
+            "homework": body.homework,
+            "session_summary": body.session_summary,
+        }
+    finally:
+        await db.close()
+
+
+@router.get("/api/teacher/sessions/{session_id}/notes")
+async def teacher_get_session_notes(session_id: int, request: Request):
+    """Teacher retrieves full notes for a session (including private teacher_notes)."""
+    await _require_teacher(request)
+    db = await get_db()
+    try:
+        cur = await db.execute(
+            """SELECT id, teacher_notes, homework, session_summary, updated_at
+               FROM sessions WHERE id = ?""",
+            (session_id,),
+        )
+        session = await cur.fetchone()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return dict(session)
+    finally:
+        await db.close()
+
+
 # ── Availability endpoints (groundwork for calendar UI) ──────────────
 
 @router.get("/api/teacher/availability")
@@ -269,5 +345,135 @@ async def booking_slots(request: Request, from_date: str = "", to_date: str = ""
 
         cur = await db.execute(query, params)
         return {"slots": [dict(row) for row in await cur.fetchall()]}
+    finally:
+        await db.close()
+
+
+# ── Teacher student overview endpoints ──────────────────────────────
+
+@router.get("/api/teacher/students")
+async def teacher_student_list(request: Request):
+    """Teacher-only: list all students with summary stats (NO email, NO password)."""
+    await _require_teacher(request)
+    db = await get_db()
+    try:
+        cur = await db.execute("""
+            SELECT s.id, s.name, s.age, s.current_level, s.created_at,
+                   (SELECT MAX(updated_at) FROM assessments
+                    WHERE student_id = s.id AND status = 'completed') as last_assessment_at,
+                   (SELECT scheduled_at FROM sessions
+                    WHERE student_id = s.id AND status IN ('requested','confirmed')
+                    ORDER BY scheduled_at LIMIT 1) as next_session_at,
+                   (SELECT status FROM sessions
+                    WHERE student_id = s.id AND status IN ('requested','confirmed')
+                    ORDER BY scheduled_at LIMIT 1) as session_status
+            FROM students s
+            WHERE s.role = 'student'
+            ORDER BY s.name
+        """)
+        return {"students": [dict(row) for row in await cur.fetchall()]}
+    finally:
+        await db.close()
+
+
+@router.get("/api/teacher/students/{student_id}/overview")
+async def teacher_student_overview(student_id: int, request: Request):
+    """Teacher-only: detailed student overview (NO email, NO password)."""
+    await _require_teacher(request)
+    db = await get_db()
+    try:
+        # 1. Student basic info (explicitly exclude email and password_hash)
+        cur = await db.execute("""
+            SELECT id, name, age, goals, problem_areas, current_level, created_at
+            FROM students WHERE id = ? AND role = 'student'
+        """, (student_id,))
+        student_row = await cur.fetchone()
+        if not student_row:
+            raise HTTPException(status_code=404, detail="Student not found")
+        student = dict(student_row)
+
+        # Parse JSON fields
+        import json
+        for field in ['goals', 'problem_areas']:
+            if student.get(field) and isinstance(student[field], str):
+                try:
+                    student[field] = json.loads(student[field])
+                except:
+                    pass
+
+        # 2. Latest completed assessment
+        cur = await db.execute("""
+            SELECT id, determined_level, confidence_score, sub_skill_breakdown,
+                   weak_areas, updated_at
+            FROM assessments
+            WHERE student_id = ? AND status = 'completed'
+            ORDER BY updated_at DESC LIMIT 1
+        """, (student_id,))
+        assessment_row = await cur.fetchone()
+        latest_assessment = None
+        if assessment_row:
+            latest_assessment = dict(assessment_row)
+            for field in ['sub_skill_breakdown', 'weak_areas']:
+                if latest_assessment.get(field) and isinstance(latest_assessment[field], str):
+                    try:
+                        latest_assessment[field] = json.loads(latest_assessment[field])
+                    except:
+                        pass
+
+        # 3. Activity feed (derived from multiple tables, last 20 events)
+        activity = []
+
+        # Sessions
+        cur = await db.execute("""
+            SELECT 'session_' || status as type,
+                   CASE status
+                       WHEN 'requested' THEN 'Requested ' || duration_min || 'min session'
+                       WHEN 'confirmed' THEN 'Session confirmed for ' || scheduled_at
+                       WHEN 'cancelled' THEN 'Session cancelled'
+                   END as detail,
+                   created_at as at
+            FROM sessions WHERE student_id = ?
+        """, (student_id,))
+        activity.extend([dict(row) for row in await cur.fetchall()])
+
+        # Assessments completed
+        cur = await db.execute("""
+            SELECT 'assessment_completed' as type,
+                   'Assessment completed: ' || COALESCE(determined_level, 'pending') as detail,
+                   updated_at as at
+            FROM assessments WHERE student_id = ? AND status = 'completed'
+        """, (student_id,))
+        activity.extend([dict(row) for row in await cur.fetchall()])
+
+        # Lessons completed (from progress table)
+        cur = await db.execute("""
+            SELECT 'lesson_completed' as type,
+                   'Completed lesson #' || lesson_id || ' (score: ' || CAST(score AS INTEGER) || '%)' as detail,
+                   completed_at as at
+            FROM progress WHERE student_id = ?
+        """, (student_id,))
+        activity.extend([dict(row) for row in await cur.fetchall()])
+
+        # Session notes updated
+        cur = await db.execute("""
+            SELECT 'session_notes_updated' as type,
+                   'Session notes updated for ' || scheduled_at as detail,
+                   updated_at as at
+            FROM sessions
+            WHERE student_id = ?
+              AND updated_at IS NOT NULL
+              AND (teacher_notes IS NOT NULL OR homework IS NOT NULL OR session_summary IS NOT NULL)
+        """, (student_id,))
+        activity.extend([dict(row) for row in await cur.fetchall()])
+
+        # Sort by timestamp descending, limit 20
+        activity.sort(key=lambda x: x.get('at') or '', reverse=True)
+        activity = activity[:20]
+
+        return {
+            "student": student,
+            "latest_assessment": latest_assessment,
+            "activity": activity
+        }
     finally:
         await db.close()

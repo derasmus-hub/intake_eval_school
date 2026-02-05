@@ -1,9 +1,9 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path
 from contextlib import asynccontextmanager
 from app.db.database import init_db
@@ -87,6 +87,32 @@ frontend_path = Path(__file__).parent.parent / "frontend"
 @app.get("/")
 async def serve_root():
     return FileResponse(frontend_path / "login.html")
+
+
+@app.get("/dashboard.html")
+async def serve_teacher_dashboard(request: Request):
+    """Teacher dashboard — server-side role check before serving HTML."""
+    from app.routes.auth import get_current_user
+    try:
+        user = await get_current_user(request)
+        if user.get("role") != "teacher":
+            return RedirectResponse(url="/student_dashboard.html", status_code=303)
+        return FileResponse(frontend_path / "dashboard.html")
+    except Exception:
+        return RedirectResponse(url="/login.html", status_code=303)
+
+
+@app.get("/student_dashboard.html")
+async def serve_student_dashboard(request: Request):
+    """Student dashboard — server-side role check before serving HTML."""
+    from app.routes.auth import get_current_user
+    try:
+        user = await get_current_user(request)
+        if user.get("role") != "student":
+            return RedirectResponse(url="/dashboard.html", status_code=303)
+        return FileResponse(frontend_path / "student_dashboard.html")
+    except Exception:
+        return RedirectResponse(url="/login.html", status_code=303)
 
 
 app.mount("/", StaticFiles(directory=frontend_path), name="frontend")

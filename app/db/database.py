@@ -41,6 +41,11 @@ async def _run_migrations(db):
         ("achievements", "category", "ALTER TABLE achievements ADD COLUMN category TEXT DEFAULT 'progress'"),
         ("achievements", "xp_reward", "ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 0"),
         ("achievements", "icon", "ALTER TABLE achievements ADD COLUMN icon TEXT"),
+        # Session notes columns
+        ("sessions", "teacher_notes", "ALTER TABLE sessions ADD COLUMN teacher_notes TEXT"),
+        ("sessions", "homework", "ALTER TABLE sessions ADD COLUMN homework TEXT"),
+        ("sessions", "session_summary", "ALTER TABLE sessions ADD COLUMN session_summary TEXT"),
+        ("sessions", "updated_at", "ALTER TABLE sessions ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
     ]
 
     for table, column, sql in migrations:

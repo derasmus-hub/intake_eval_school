@@ -64,10 +64,122 @@ async function selectStudent(id) {
         }
     }).catch(() => {});
 
-    switchTab('profile');
+    switchTab('overview');
+    loadOverview();
     loadProfile();
     loadLessons();
     loadProgress();
+}
+
+async function loadOverview() {
+    const intakeEl = document.getElementById('overview-intake-content');
+    const assessmentEl = document.getElementById('overview-assessment-content');
+    const activityEl = document.getElementById('overview-activity-content');
+
+    if (!intakeEl || !assessmentEl || !activityEl) return; // elements not present
+
+    intakeEl.innerHTML = '<p class="meta">Loading...</p>';
+    assessmentEl.innerHTML = '<p class="meta">Loading...</p>';
+    activityEl.innerHTML = '<p class="meta">Loading...</p>';
+
+    try {
+        const resp = await apiFetch(`/api/teacher/students/${currentStudentId}/overview`);
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            intakeEl.innerHTML = `<p class="meta">Error: ${err.detail || 'Could not load overview'}</p>`;
+            assessmentEl.innerHTML = '<p class="meta">--</p>';
+            activityEl.innerHTML = '<p class="meta">--</p>';
+            return;
+        }
+
+        const data = await resp.json();
+        renderIntakeSummary(data.student, intakeEl);
+        renderAssessmentSummary(data.latest_assessment, assessmentEl);
+        renderActivityFeed(data.activity, activityEl);
+    } catch (err) {
+        intakeEl.innerHTML = `<p class="meta">Error: ${err.message}</p>`;
+    }
+}
+
+function renderIntakeSummary(student, container) {
+    if (!student) {
+        container.innerHTML = '<p class="meta">No student data.</p>';
+        return;
+    }
+
+    const goals = student.goals || [];
+    const problemAreas = student.problem_areas || [];
+    const notes = student.additional_notes;
+
+    let html = '<div class="intake-summary">';
+
+    // Goals
+    html += '<div class="intake-field"><strong>Goals / Cele:</strong> ';
+    if (goals.length > 0) {
+        html += '<div class="chip-list">' + goals.map(g => `<span class="chip chip-goal">${escapeHtml(g)}</span>`).join(' ') + '</div>';
+    } else {
+        html += '<span class="meta">Not provided yet / Nie podano</span>';
+    }
+    html += '</div>';
+
+    // Problem Areas
+    html += '<div class="intake-field" style="margin-top:0.5rem;"><strong>Problem Areas / Trudności:</strong> ';
+    if (problemAreas.length > 0) {
+        html += '<div class="chip-list">' + problemAreas.map(p => `<span class="chip chip-problem">${escapeHtml(p)}</span>`).join(' ') + '</div>';
+    } else {
+        html += '<span class="meta">Not provided yet / Nie podano</span>';
+    }
+    html += '</div>';
+
+    // Additional notes
+    if (notes) {
+        html += `<div class="intake-field" style="margin-top:0.5rem;"><strong>Notes / Uwagi:</strong><p style="margin:0.25rem 0 0 0;color:#555;">${escapeHtml(notes)}</p></div>`;
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function renderAssessmentSummary(assessment, container) {
+    if (!assessment) {
+        container.innerHTML = '<p class="meta">No assessment completed yet. / Brak ukończonej oceny.</p>';
+        return;
+    }
+
+    const level = assessment.determined_level || '--';
+    const confidence = assessment.confidence_score ? Math.round(assessment.confidence_score * 100) + '%' : '--';
+    const weakAreas = assessment.weak_areas || [];
+
+    let html = `<p><strong>Level:</strong> ${escapeHtml(level)} <span class="meta">(Confidence: ${confidence})</span></p>`;
+
+    if (weakAreas.length > 0) {
+        html += '<p style="margin-top:0.5rem;"><strong>Weak Areas:</strong></p>';
+        html += '<div class="chip-list">' + weakAreas.map(w => `<span class="chip chip-weak">${escapeHtml(w)}</span>`).join(' ') + '</div>';
+    }
+
+    container.innerHTML = html;
+}
+
+function renderActivityFeed(activity, container) {
+    if (!activity || activity.length === 0) {
+        container.innerHTML = '<p class="meta">No recent activity. / Brak ostatniej aktywności.</p>';
+        return;
+    }
+
+    const html = activity.slice(0, 10).map(ev => {
+        const type = ev.type || 'event';
+        const detail = ev.detail || '';
+        const at = ev.at ? new Date(ev.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+
+        let icon = '📌';
+        if (type.includes('session')) icon = '📅';
+        else if (type.includes('assessment')) icon = '📝';
+        else if (type.includes('lesson')) icon = '📚';
+
+        return `<div class="activity-item"><span class="activity-icon">${icon}</span><span class="activity-detail">${escapeHtml(detail)}</span><span class="activity-time meta">${at}</span></div>`;
+    }).join('');
+
+    container.innerHTML = html;
 }
 
 function showStudentList() {
@@ -521,7 +633,8 @@ async function loadTeacherSessions() {
                     '<button class="btn btn-sm" onclick="cancelSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:#e74c3c;color:white;">Cancel / Anuluj</button>' +
                     '</div>';
             } else if (s.status === 'confirmed') {
-                actions = '<div style="margin-top:0.5rem;">' +
+                actions = '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;">' +
+                    '<button class="btn btn-sm btn-secondary" onclick="openNotesModal(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;">Log Notes / Zapisz notatki</button>' +
                     '<button class="btn btn-sm" onclick="cancelSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:#e74c3c;color:white;">Cancel / Anuluj</button>' +
                     '</div>';
             }
@@ -572,6 +685,116 @@ async function cancelSession(sessionId) {
         loadTeacherSessions();
     } catch (err) {
         alert('Error: ' + err.message);
+    }
+}
+
+// ── Session Notes Modal ───────────────────────────────────────────
+
+let notesModalSessionId = null;
+
+function openNotesModal(sessionId) {
+    notesModalSessionId = sessionId;
+
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('notes-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'notes-modal';
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Session Notes / Notatki z sesji</h3>
+                    <button onclick="closeNotesModal()" class="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="notes-teacher">Private Teacher Notes / Prywatne notatki nauczyciela:</label>
+                        <textarea id="notes-teacher" rows="3" placeholder="Only you can see this..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="notes-homework">Homework (visible to student) / Praca domowa:</label>
+                        <textarea id="notes-homework" rows="2" placeholder="Homework assignment..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="notes-summary">Session Summary (visible to student) / Podsumowanie:</label>
+                        <textarea id="notes-summary" rows="2" placeholder="Brief summary of what was covered..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button onclick="closeNotesModal()" class="btn btn-sm" style="background:#95a5a6;color:white;">Cancel / Anuluj</button>
+                    <button onclick="saveSessionNotes()" class="btn btn-sm btn-primary" id="save-notes-btn">Save / Zapisz</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    // Load existing notes
+    loadExistingNotes(sessionId);
+
+    modal.classList.add('visible');
+}
+
+function closeNotesModal() {
+    const modal = document.getElementById('notes-modal');
+    if (modal) modal.classList.remove('visible');
+    notesModalSessionId = null;
+}
+
+async function loadExistingNotes(sessionId) {
+    try {
+        const resp = await apiFetch(`/api/teacher/sessions/${sessionId}/notes`);
+        if (resp.ok) {
+            const data = await resp.json();
+            document.getElementById('notes-teacher').value = data.teacher_notes || '';
+            document.getElementById('notes-homework').value = data.homework || '';
+            document.getElementById('notes-summary').value = data.session_summary || '';
+        }
+    } catch (err) {
+        console.warn('Could not load existing notes:', err);
+    }
+}
+
+async function saveSessionNotes() {
+    if (!notesModalSessionId) return;
+
+    const btn = document.getElementById('save-notes-btn');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+        const resp = await apiFetch(`/api/teacher/sessions/${notesModalSessionId}/notes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                teacher_notes: document.getElementById('notes-teacher').value || null,
+                homework: document.getElementById('notes-homework').value || null,
+                session_summary: document.getElementById('notes-summary').value || null,
+            }),
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            alert('Error: ' + (err.detail || 'Could not save notes'));
+            btn.disabled = false;
+            btn.textContent = originalText;
+            return;
+        }
+
+        btn.textContent = 'Saved!';
+        setTimeout(() => {
+            closeNotesModal();
+            btn.disabled = false;
+            btn.textContent = originalText;
+            // Refresh sessions list
+            loadTeacherSessions();
+        }, 800);
+    } catch (err) {
+        alert('Error: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = originalText;
     }
 }
 

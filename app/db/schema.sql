@@ -200,7 +200,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     duration_min INTEGER NOT NULL DEFAULT 60,
     status TEXT NOT NULL DEFAULT 'requested',
     notes TEXT,
+    teacher_notes TEXT,
+    homework TEXT,
+    session_summary TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(id),
     FOREIGN KEY (teacher_id) REFERENCES students(id)
 );

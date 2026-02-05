@@ -260,6 +260,196 @@ check("Teacher blocked from student sessions (403)", code == 403, f"status={code
 code, data = api("GET", "/api/auth/me")
 check("No token on /me returns 401", code == 401, f"status={code}")
 
+# ── 8. Teacher Overview (activity feed) ─────────────────────────
+print("\n=== 8. Teacher Overview ===")
+
+# Teacher lists all students
+code, data = api("GET", "/api/teacher/students", token=teacher_token)
+check("Teacher list students returns 200", code == 200, f"status={code}")
+students_list = data.get("students", [])
+check("Teacher sees at least 1 student", len(students_list) >= 1, f"count={len(students_list)}")
+
+# Find the student we registered earlier (the one with sessions)
+overview_student_id = None
+for s in students_list:
+    if s.get("id") == student_id:
+        overview_student_id = student_id
+        break
+# Fallback to first student if our student not found (shouldn't happen)
+if not overview_student_id and students_list:
+    overview_student_id = students_list[0]["id"]
+
+if overview_student_id:
+    # Get detailed overview for this student
+    code, data = api("GET", f"/api/teacher/students/{overview_student_id}/overview", token=teacher_token)
+    check("Teacher overview returns 200", code == 200, f"status={code}")
+    check("Overview has student info", data.get("student") is not None)
+
+    activity = data.get("activity", [])
+    check("Activity feed exists", isinstance(activity, list))
+    check("Activity feed has events", len(activity) >= 1, f"count={len(activity)}")
+
+    # The student requested and had sessions confirmed/cancelled, so we expect session events
+    session_events = [e for e in activity if e.get("type", "").startswith("session_")]
+    check("Activity has session events", len(session_events) >= 1, f"count={len(session_events)}")
+else:
+    check("Could not find student for overview test", False, "no students available")
+
+# Student should not access teacher overview endpoint
+code, data = api("GET", f"/api/teacher/students/{student_id}/overview", token=student_token)
+check("Student blocked from teacher overview (403)", code == 403, f"status={code}")
+
+# ── 9. Dashboard HTML Server-Side Guards ─────────────────────────
+print("\n=== 9. Dashboard HTML Guards ===")
+
+
+def get_redirect(path, token=None):
+    """Fetch a URL and return (status_code, redirect_location or None)."""
+    import urllib.request
+    import urllib.error
+
+    url = BASE + path
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+        # Also set cookie for browser-like behavior
+        headers["Cookie"] = f"auth_token={token}"
+
+    class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None  # Don't follow redirects
+
+    opener = urllib.request.build_opener(NoRedirectHandler)
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with opener.open(req, timeout=10) as resp:
+            return resp.status, None
+    except urllib.error.HTTPError as e:
+        location = e.headers.get("Location", "")
+        return e.code, location
+
+
+# Unauthenticated → login.html
+code, loc = get_redirect("/dashboard.html")
+check("Unauthenticated /dashboard.html → login (303)", code == 303 and "login" in loc, f"code={code} loc={loc}")
+
+code, loc = get_redirect("/student_dashboard.html")
+check("Unauthenticated /student_dashboard.html → login (303)", code == 303 and "login" in loc, f"code={code} loc={loc}")
+
+# Teacher accessing student_dashboard → dashboard.html
+code, loc = get_redirect("/student_dashboard.html", token=teacher_token)
+check("Teacher /student_dashboard.html → dashboard (303)", code == 303 and "dashboard.html" in loc and "student" not in loc, f"code={code} loc={loc}")
+
+# Teacher accessing dashboard.html → served (200)
+code, loc = get_redirect("/dashboard.html", token=teacher_token)
+check("Teacher /dashboard.html → served (200)", code == 200, f"code={code}")
+
+# Student accessing dashboard.html → student_dashboard.html
+code, loc = get_redirect("/dashboard.html", token=student_token)
+check("Student /dashboard.html → student_dashboard (303)", code == 303 and "student_dashboard" in loc, f"code={code} loc={loc}")
+
+# Student accessing student_dashboard.html → served (200)
+code, loc = get_redirect("/student_dashboard.html", token=student_token)
+check("Student /student_dashboard.html → served (200)", code == 200, f"code={code}")
+
+# ── 10. Intake Data in Teacher Overview ─────────────────────────
+print("\n=== 10. Intake Data ===")
+
+# Create a new student via intake with goals and problem_areas
+intake_goals = ["conversational", "business"]
+intake_problems = ["articles", "tenses"]
+intake_notes = "Test student for intake verification"
+
+code, data = api("POST", "/api/intake", {
+    "name": "Intake Test Student",
+    "age": 30,
+    "goals": intake_goals,
+    "problem_areas": intake_problems,
+    "additional_notes": intake_notes,
+    "filler": "teacher",
+})
+check("Create intake student returns 200", code == 200, f"status={code}")
+intake_test_id = data.get("student_id")
+check("Intake student ID received", intake_test_id is not None, f"id={intake_test_id}")
+
+# Teacher fetches overview for this student
+code, data = api("GET", f"/api/teacher/students/{intake_test_id}/overview", token=teacher_token)
+check("Teacher overview for intake student returns 200", code == 200, f"status={code}")
+
+student_data = data.get("student", {})
+check("Overview contains student object", student_data is not None)
+
+# Verify goals are present and match
+returned_goals = student_data.get("goals", [])
+check("Intake goals returned correctly",
+      set(returned_goals) == set(intake_goals),
+      f"expected={intake_goals}, got={returned_goals}")
+
+# Verify problem_areas are present and match
+returned_problems = student_data.get("problem_areas", [])
+check("Intake problem_areas returned correctly",
+      set(returned_problems) == set(intake_problems),
+      f"expected={intake_problems}, got={returned_problems}")
+
+# Verify no sensitive fields in response
+response_str = json.dumps(data)
+check("No 'email' in teacher overview", "email" not in response_str.lower() or "email" not in student_data)
+check("No 'password' in teacher overview", "password" not in response_str.lower())
+
+# Verify email and password_hash are not in student object keys
+student_keys = set(student_data.keys())
+check("student object has no email key", "email" not in student_keys, f"keys={student_keys}")
+check("student object has no password_hash key", "password_hash" not in student_keys, f"keys={student_keys}")
+
+# ── 11. Session Notes ────────────────────────────────────────────
+print("\n=== 11. Session Notes ===")
+
+# Use the confirmed session from earlier tests (session_id from Section 6)
+# Teacher saves notes for the confirmed session
+test_teacher_notes = "Student needs more practice with articles"
+test_homework = "Complete exercises 1-5 on page 42"
+test_summary = "Covered present perfect tense today"
+
+code, data = api("POST", f"/api/teacher/sessions/{session_id}/notes", {
+    "teacher_notes": test_teacher_notes,
+    "homework": test_homework,
+    "session_summary": test_summary,
+}, token=teacher_token)
+check("Teacher save notes returns 200", code == 200, f"status={code}")
+check("Notes response has homework", data.get("homework") == test_homework)
+
+# Teacher can retrieve notes (including private teacher_notes)
+code, data = api("GET", f"/api/teacher/sessions/{session_id}/notes", token=teacher_token)
+check("Teacher get notes returns 200", code == 200, f"status={code}")
+check("Teacher sees teacher_notes", data.get("teacher_notes") == test_teacher_notes)
+check("Teacher sees homework", data.get("homework") == test_homework)
+check("Teacher sees session_summary", data.get("session_summary") == test_summary)
+
+# Student fetches their sessions - should see homework/summary but NOT teacher_notes
+code, data = api("GET", "/api/student/me/sessions", token=student_token)
+check("Student get sessions returns 200", code == 200, f"status={code}")
+student_sessions = data.get("sessions", [])
+our_session = next((s for s in student_sessions if s.get("id") == session_id), None)
+check("Student sees confirmed session", our_session is not None)
+
+if our_session:
+    check("Student sees homework", our_session.get("homework") == test_homework, f"got={our_session.get('homework')}")
+    check("Student sees session_summary", our_session.get("session_summary") == test_summary)
+    check("Student does NOT see teacher_notes", "teacher_notes" not in our_session, f"keys={list(our_session.keys())}")
+
+# Student cannot POST to teacher notes endpoint (403)
+code, data = api("POST", f"/api/teacher/sessions/{session_id}/notes", {
+    "homework": "hacked homework",
+}, token=student_token)
+check("Student blocked from saving notes (403)", code == 403, f"status={code}")
+
+# Verify activity feed includes session_notes_updated event
+code, data = api("GET", f"/api/teacher/students/{student_id}/overview", token=teacher_token)
+check("Teacher overview after notes returns 200", code == 200, f"status={code}")
+activity = data.get("activity", [])
+notes_events = [e for e in activity if e.get("type") == "session_notes_updated"]
+check("Activity feed has session_notes_updated event", len(notes_events) >= 1, f"count={len(notes_events)}")
+
 # ── Summary ──────────────────────────────────────────────────────
 print("\n" + "=" * 50)
 total = PASS + FAIL
