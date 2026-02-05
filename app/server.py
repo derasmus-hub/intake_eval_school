@@ -8,18 +8,32 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from app.db.database import init_db
 from app.middleware.auth import AuthMiddleware
+from app.config import settings
 
-# CORS: use CORS_ORIGINS env var (comma-separated) or sensible defaults.
-_cors_env = os.environ.get("CORS_ORIGINS", "")
-if _cors_env:
-    _allowed_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+# CORS configuration based on environment
+# ENV=prod → require explicit CORS_ORIGINS or use restrictive default
+# ENV=dev (default) → permissive localhost origins
+_env = settings.env.lower()
+_cors_origins_setting = settings.cors_origins
+
+if _env == "prod":
+    # Production: only allow explicit origins
+    if _cors_origins_setting:
+        _allowed_origins = [o.strip() for o in _cors_origins_setting.split(",") if o.strip()]
+    else:
+        # No origins configured in prod = no CORS (same-origin only)
+        _allowed_origins = []
 else:
-    _allowed_origins = [
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ]
+    # Development: permissive defaults
+    if _cors_origins_setting:
+        _allowed_origins = [o.strip() for o in _cors_origins_setting.split(",") if o.strip()]
+    else:
+        _allowed_origins = [
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
 
 
 @asynccontextmanager

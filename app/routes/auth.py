@@ -3,15 +3,39 @@ import bcrypt
 import jwt
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from app.db.database import get_db
 from app.config import settings
+from app.middleware.rate_limit import auth_limiter
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 JWT_SECRET = settings.jwt_secret
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 72
+
+# Password policy
+MIN_PASSWORD_LENGTH = 8
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP from request (handles proxies)."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _check_rate_limit(request: Request) -> None:
+    """Check rate limit and raise 429 if exceeded."""
+    ip = _get_client_ip(request)
+    if not auth_limiter.is_allowed(ip):
+        retry_after = auth_limiter.get_retry_after(ip)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many attempts. Try again in {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)} if retry_after else {},
+        )
 
 
 class RegisterRequest(BaseModel):
@@ -20,6 +44,13 @@ class RegisterRequest(BaseModel):
     password: str
     age: int | None = None
     role: str = "student"  # "student" or "teacher"
+
+    @field_validator("password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < MIN_PASSWORD_LENGTH:
+            raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters")
+        return v
 
 
 class LoginRequest(BaseModel):
@@ -113,7 +144,8 @@ def require_role(*allowed_roles: str):
 
 
 @router.post("/register")
-async def register(body: RegisterRequest):
+async def register(body: RegisterRequest, request: Request):
+    _check_rate_limit(request)
     db = await get_db()
     try:
         # Check email not already taken
@@ -148,7 +180,8 @@ async def register(body: RegisterRequest):
 
 
 @router.post("/login")
-async def login(body: LoginRequest):
+async def login(body: LoginRequest, request: Request):
+    _check_rate_limit(request)
     db = await get_db()
     try:
         cursor = await db.execute(

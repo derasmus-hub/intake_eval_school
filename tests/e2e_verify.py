@@ -98,7 +98,7 @@ check("Role is teacher", data.get("role") == "teacher", f"role={data.get('role')
 
 # Duplicate registration should fail
 code, data = api("POST", "/api/auth/register", {
-    "name": "Dup", "email": student_email, "password": "x", "role": "student",
+    "name": "Dup", "email": student_email, "password": "validpass123", "role": "student",
 })
 check("Duplicate email returns 409", code == 409, f"status={code}")
 
@@ -608,6 +608,73 @@ code, data = api("POST", "/api/student/me/progress", {
     "score": 80,
 }, token=teacher_token)
 check("Teacher blocked from student progress (403)", code == 403, f"status={code}")
+
+# ── 14. Security: Password Policy ─────────────────────────────────
+print("\n=== 14. Security: Password Policy ===")
+
+# Short password should be rejected (less than 8 characters)
+code, data = api("POST", "/api/auth/register", {
+    "name": "Short Pass User",
+    "email": rand_email(),
+    "password": "short",  # Only 5 characters
+    "role": "student",
+})
+check("Short password rejected", code == 422, f"status={code}")
+check("Error mentions password", "password" in str(data).lower(), f"detail={data}")
+
+# Exactly 7 characters should be rejected
+code, data = api("POST", "/api/auth/register", {
+    "name": "Seven Char User",
+    "email": rand_email(),
+    "password": "1234567",  # 7 characters
+    "role": "student",
+})
+check("7-char password rejected", code == 422, f"status={code}")
+
+# Exactly 8 characters should be accepted
+eight_char_email = rand_email()
+code, data = api("POST", "/api/auth/register", {
+    "name": "Eight Char User",
+    "email": eight_char_email,
+    "password": "12345678",  # Exactly 8 characters
+    "role": "student",
+})
+check("8-char password accepted", code == 200, f"status={code}")
+
+# ── 15. Security: Rate Limiting ───────────────────────────────────
+print("\n=== 15. Security: Rate Limiting ===")
+
+# Reset rate limiter for this test (call a special endpoint or just test behavior)
+# We'll make 11 rapid login attempts with wrong credentials to trigger rate limit
+
+rate_test_email = rand_email()
+rate_limit_triggered = False
+
+for i in range(12):
+    code, data = api("POST", "/api/auth/login", {
+        "email": rate_test_email,
+        "password": "wrongpassword123",
+    })
+    if code == 429:
+        rate_limit_triggered = True
+        check(f"Rate limit triggered after {i+1} attempts", True, f"attempt={i+1}")
+        check("Rate limit response has retry info", "retry" in str(data).lower() or "too many" in str(data).lower(), f"detail={data}")
+        break
+
+if not rate_limit_triggered:
+    check("Rate limit should trigger after 10 attempts", False, "no 429 received")
+
+# Verify rate limit also applies to register endpoint
+# Use a new "IP simulation" - we can't really change IP, but the rate limiter
+# should have already counted our previous attempts from this IP
+code, data = api("POST", "/api/auth/register", {
+    "name": "Rate Test User",
+    "email": rand_email(),
+    "password": "password123",
+})
+# This might be 429 if we're still rate limited, or 200 if register has separate bucket
+# Either is acceptable - we just verify rate limiting is active
+check("Register endpoint responds", code in [200, 429], f"status={code}")
 
 # ── Summary ──────────────────────────────────────────────────────
 print("\n" + "=" * 50)
