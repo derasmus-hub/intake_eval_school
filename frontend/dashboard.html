@@ -4,22 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teacher Dashboard - Panel nauczyciela</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
+        <nav class="site-nav">
+            <a href="dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="index.html">Intake</a>
+                <a href="dashboard.html" class="active">Dashboard</a>
+                <a href="assessment.html">Assessment</a>
+                <a href="games.html">Games</a>
+                <a href="leaderboard.html">Leaderboard</a>
+            </div>
+        </nav>
+
         <div class="dashboard-header">
             <div>
                 <h1>Teacher Dashboard</h1>
                 <p class="subtitle">Panel nauczyciela</p>
             </div>
-            <a href="/" class="btn btn-primary btn-sm">+ New Student / Nowy uczeń</a>
+            <a href="index.html" class="btn btn-primary btn-sm">+ New Student / Nowy uczeń</a>
         </div>
 
         <div id="student-list-section">
             <h2>Students / Uczniowie</h2>
             <div id="student-list" class="student-list">
                 <div class="loading">Loading students...</div>
+            </div>
+        </div>
+
+        <!-- Session Requests Panel -->
+        <div id="session-requests-section" class="detail-panel" style="margin-bottom:1.5rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                <h2 style="margin:0;">Session Requests / Prośby o sesję</h2>
+                <button class="btn btn-sm" onclick="loadTeacherSessions()" style="background:#eee;">Refresh</button>
+            </div>
+            <div id="teacher-sessions-list">
+                <p class="meta">Loading session requests...</p>
             </div>
         </div>
 
@@ -33,10 +56,19 @@
                 <p id="detail-student-meta" class="meta"></p>
             </div>
 
+            <div class="student-actions" style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+                <a id="session-link" href="#" class="btn btn-sm btn-primary">Start Session / Rozpocznij sesje</a>
+                <a id="vocab-link" href="#" class="btn btn-sm btn-secondary">Vocabulary / Slownictwo</a>
+                <a id="conversation-link" href="#" class="btn btn-sm btn-secondary">Conversation / Konwersacja</a>
+                <a id="games-link" href="#" class="btn btn-sm btn-secondary">Games / Gry</a>
+                <a id="profile-link" href="#" class="btn btn-sm" style="background:#9b59b6;color:white;">Profile / Profil</a>
+            </div>
+
             <div class="tabs">
                 <button class="tab active" onclick="switchTab('profile')">Profile / Profil</button>
                 <button class="tab" onclick="switchTab('lessons')">Lessons / Lekcje</button>
                 <button class="tab" onclick="switchTab('progress')">Progress / Postępy</button>
+                <button class="tab" onclick="switchTab('analytics')">Analytics / Analityka</button>
             </div>
 
             <div id="tab-profile" class="tab-content active">
@@ -70,12 +102,32 @@
                     </div>
                 </div>
             </div>
+
+            <div id="tab-analytics" class="tab-content">
+                <div class="detail-panel">
+                    <div id="analytics-content">
+                        <p>No analytics data yet.</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <footer>
-            <a href="/">Intake Form / Formularz przyjęcia</a>
+            <a href="index.html">Intake Form / Formularz przyjęcia</a>
         </footer>
     </div>
-    <script src="/js/dashboard.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/celebrations.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/charts.js"></script>
+    <script>
+        // Role guard: only teachers allowed here; students go to their own dashboard
+        APP.guardRole(['teacher'], 'student_dashboard.html');
+        AUTH.addAuthLinks(); AUTH.updateNav();
+    </script>
 </body>
 </html>

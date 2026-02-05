@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard - Tablica wynikow</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="site-nav">
+            <a href="dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="games.html">Games</a>
+                <a href="leaderboard.html" class="active">Leaderboard</a>
+                <a href="profile.html">Profile</a>
+            </div>
+        </nav>
+
+        <header>
+            <h1>Leaderboard</h1>
+            <p class="subtitle">Tablica wynikow</p>
+        </header>
+
+        <div class="leaderboard-tabs">
+            <button class="tab active" onclick="switchBoard('weekly')">This Week / Ten tydzien</button>
+            <button class="tab" onclick="switchBoard('alltime')">All Time / Caly czas</button>
+            <button class="tab" onclick="switchBoard('streak')">Streaks / Serie</button>
+        </div>
+
+        <div id="leaderboard-content" class="form-section">
+            <div class="loading">Loading leaderboard...</div>
+        </div>
+
+        <footer>
+            <a href="dashboard.html">Dashboard</a> &middot;
+            <a href="games.html">Games / Gry</a> &middot;
+            <a href="profile.html">Profile / Profil</a>
+        </footer>
+    </div>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        let currentBoard = 'weekly';
+
+        function switchBoard(type) {
+            currentBoard = type;
+            document.querySelectorAll('.leaderboard-tabs .tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            loadLeaderboard(type);
+        }
+
+        async function loadLeaderboard(type) {
+            const container = document.getElementById('leaderboard-content');
+            container.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const resp = await apiFetch(`/api/leaderboard/${type}`);
+                const data = await resp.json();
+                renderLeaderboard(data, type);
+            } catch (err) {
+                container.innerHTML = '<p>Error loading leaderboard.</p>';
+            }
+        }
+
+        function renderLeaderboard(data, type) {
+            const container = document.getElementById('leaderboard-content');
+            const entries = data.entries || [];
+
+            if (entries.length === 0) {
+                container.innerHTML = '<p style="text-align:center;padding:2rem;">No data yet. Start learning to appear here!<br><em>Brak danych. Zacznij sie uczyc, aby sie tu pojawic!</em></p>';
+                return;
+            }
+
+            const isStreak = type === 'streak';
+            const valueLabel = isStreak ? 'Streak' : 'XP';
+
+            container.innerHTML = `
+                <div class="lb-list">
+                    ${entries.map((e, i) => `
+                        <div class="lb-entry ${i < 3 ? 'lb-top-' + (i+1) : ''}">
+                            <div class="lb-rank">${getRankBadge(e.rank)}</div>
+                            <div class="lb-avatar">
+                                <div class="avatar-circle avatar-${e.avatar_id || 'default'}">${getAvatarEmoji(e.avatar_id)}</div>
+                            </div>
+                            <div class="lb-info">
+                                <div class="lb-name">${escapeHtml(e.name)}</div>
+                                <div class="lb-title">Lv.${e.level} ${escapeHtml(e.title_pl || e.title)}</div>
+                            </div>
+                            <div class="lb-score">
+                                <span class="lb-value">${isStreak ? e.streak : e.xp}</span>
+                                <span class="lb-label">${isStreak ? 'days' : 'XP'}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function getRankBadge(rank) {
+            if (rank === 1) return '<span class="rank-gold">1</span>';
+            if (rank === 2) return '<span class="rank-silver">2</span>';
+            if (rank === 3) return '<span class="rank-bronze">3</span>';
+            return `<span class="rank-num">${rank}</span>`;
+        }
+
+        function getAvatarEmoji(id) {
+            const map = {default:'S',fox:'F',owl:'O',eagle:'E',wolf:'W',bear:'B',dragon:'D',phoenix:'P',unicorn:'U',lion:'L',star:'*'};
+            return map[id] || 'S';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        loadLeaderboard('weekly');
+        AUTH.addAuthLinks();
+    </script>
+</body>
+</html>

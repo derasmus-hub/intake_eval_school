@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session / Sesja</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="site-nav" id="site-nav">
+            <a href="dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="#" id="nav-vocab">Vocabulary</a>
+                <a href="#" id="nav-conversation">Conversation</a>
+                <a href="#" class="active">Session</a>
+            </div>
+            <span class="nav-student" id="nav-student-name"></span>
+        </nav>
+
+        <div class="dashboard-header">
+            <div>
+                <h1>Lesson Session</h1>
+                <p class="subtitle">Sesja lekcyjna</p>
+            </div>
+            <a href="dashboard.html" class="btn btn-sm">&larr; Dashboard</a>
+        </div>
+
+        <div id="loading-screen">
+            <div class="loading">Checking session status...</div>
+        </div>
+
+        <div id="recall-prompt" class="hidden">
+            <div class="detail-panel" style="text-align:center;">
+                <h2>Time for a quick warm-up!</h2>
+                <p class="subtitle">Czas na szybka rozgrzewke!</p>
+                <p style="margin:1rem 0;">
+                    You have some review items from previous lessons.
+                    Let's do a quick warm-up before your new lesson.
+                </p>
+                <p class="polish-text" style="margin-bottom:1rem;">
+                    <em>Masz kilka elementow do powtorzenia z poprzednich lekcji.
+                    Zrobmy szybka rozgrzewke przed nowa lekcja.</em>
+                </p>
+                <a id="warmup-link" href="#" class="btn btn-primary">
+                    Start Warm-Up / Rozpocznij rozgrzewke
+                </a>
+            </div>
+        </div>
+
+        <div id="ready-screen" class="hidden">
+            <div class="detail-panel" style="text-align:center;">
+                <h2>Ready for your lesson!</h2>
+                <p class="subtitle">Gotowy na lekcje!</p>
+                <div id="student-info" style="margin:1rem 0;"></div>
+                <div id="recall-summary" class="hidden" style="margin:1rem 0;text-align:left;"></div>
+                <a id="dashboard-link" href="#" onclick="APP.goHomeByRole(); return false;" class="btn btn-primary" style="margin-top:1rem;">
+                    Go to Dashboard / Przejdz do panelu
+                </a>
+            </div>
+        </div>
+
+        <footer>
+            <a href="dashboard.html">Dashboard / Panel</a>
+        </footer>
+    </div>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        AUTH.addAuthLinks(); AUTH.updateNav();
+
+        function getParam(name) {
+            return new URLSearchParams(window.location.search).get(name);
+        }
+
+        async function init() {
+            const studentId = STATE.requireStudentId();
+            if (!studentId) return; // redirect triggered
+            const recallDone = getParam('recall_done');
+
+            // Set nav links
+            const navVocab = document.getElementById('nav-vocab');
+            const navConv = document.getElementById('nav-conversation');
+            if (navVocab) navVocab.href = `vocab.html?student_id=${studentId}`;
+            if (navConv) navConv.href = `conversation.html?student_id=${studentId}`;
+            apiFetch(`/api/intake/${studentId}`).then(r=>r.json()).then(s=>{
+                const el = document.getElementById('nav-student-name');
+                if (el) el.innerHTML = `<strong>${s.name||''}</strong> (${s.current_level||''})`;
+            }).catch(()=>{});
+
+            // If recall was just completed, go straight to ready
+            if (recallDone === 'true') {
+                showReady(studentId);
+                return;
+            }
+
+            // Check recall status
+            try {
+                const resp = await apiFetch(`/api/recall/${studentId}/check`);
+                const data = await resp.json();
+
+                if (data.has_pending_recall) {
+                    showRecallPrompt(studentId);
+                } else {
+                    showReady(studentId);
+                }
+            } catch (err) {
+                document.getElementById('loading-screen').innerHTML =
+                    '<p>Error: ' + err.message + '</p>';
+            }
+        }
+
+        function showRecallPrompt(studentId) {
+            document.getElementById('loading-screen').classList.add('hidden');
+            document.getElementById('recall-prompt').classList.remove('hidden');
+            document.getElementById('warmup-link').href = `recall.html?student_id=${studentId}`;
+        }
+
+        function showReady(studentId) {
+            document.getElementById('loading-screen').classList.add('hidden');
+            document.getElementById('ready-screen').classList.remove('hidden');
+            document.getElementById('dashboard-link').href = `dashboard.html`;
+
+            // Load student info
+            apiFetch(`/api/intake/${studentId}`)
+                .then(r => r.json())
+                .then(student => {
+                    document.getElementById('student-info').innerHTML = `
+                        <p><strong>${student.name || 'Student'}</strong> | Level: ${student.current_level || 'N/A'}</p>
+                    `;
+                })
+                .catch(() => {});
+        }
+
+        init();
+    </script>
+</body>
+</html>

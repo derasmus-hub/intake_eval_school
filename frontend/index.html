@@ -4,160 +4,257 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>English Intake Form - Formularz przyjęcia</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div class="container">
+        <nav class="site-nav">
+            <a href="dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="index.html" class="active">Intake</a>
+                <a href="dashboard.html">Dashboard</a>
+                <a href="assessment.html">Assessment</a>
+            </div>
+        </nav>
+
         <header>
             <h1>English Learning Intake Form</h1>
             <p class="subtitle">Formularz przyjęcia do nauki angielskiego</p>
         </header>
 
-        <form id="intake-form">
-            <section class="form-section">
-                <h2>Student Information / Dane ucznia</h2>
-                <div class="form-group">
-                    <label for="name">Name / Imię i nazwisko *</label>
-                    <input type="text" id="name" name="name" required>
+        <!-- Wizard Progress -->
+        <div class="assessment-progress">
+            <div class="progress-steps">
+                <div class="step active" id="wizard-step-1">
+                    <div class="step-number">1</div>
+                    <div class="step-label">Info<br><small>Dane</small></div>
                 </div>
-                <div class="form-group">
-                    <label for="age">Age / Wiek</label>
-                    <input type="number" id="age" name="age" min="4" max="99">
+                <div class="step-connector"></div>
+                <div class="step" id="wizard-step-2">
+                    <div class="step-number">2</div>
+                    <div class="step-label">Assessment<br><small>Test</small></div>
                 </div>
-            </section>
+                <div class="step-connector"></div>
+                <div class="step" id="wizard-step-3">
+                    <div class="step-number">3</div>
+                    <div class="step-label">Goals<br><small>Cele</small></div>
+                </div>
+            </div>
+        </div>
 
-            <section class="form-section">
-                <h2>Current English Level / Aktualny poziom</h2>
-                <div class="radio-group">
+        <!-- Step 1: Basic Info -->
+        <div id="step1-content">
+            <form id="step1-form">
+                <section class="form-section">
+                    <h2>Student Information / Dane ucznia</h2>
+                    <div class="form-group">
+                        <label for="name">Name / Imię i nazwisko *</label>
+                        <input type="text" id="name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="age">Age / Wiek</label>
+                        <input type="number" id="age" name="age" min="4" max="99">
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h2>Filled out by / Wypełnia</h2>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="filler" value="student" checked>
+                            <span>Student / Uczeń</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="filler" value="teacher">
+                            <span>Teacher / Nauczyciel</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="filler" value="parent">
+                            <span>Parent / Rodzic</span>
+                        </label>
+                    </div>
+                </section>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Next: Take Assessment / Dalej: Test &rarr;</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Step 2: Assessment -->
+        <div id="step2-content" class="hidden">
+            <div class="form-section">
+                <h2>Level Assessment / Test poziomujący</h2>
+                <p class="section-desc">
+                    We'll determine your English level with a short adaptive test instead of self-reporting.
+                    <br>
+                    <em>Określimy Twój poziom angielskiego za pomocą krótkiego testu adaptacyjnego.</em>
+                </p>
+            </div>
+
+            <div class="form-section" style="text-align:center;">
+                <p>Student registered as <strong id="step2-student-name"></strong> (ID: <span id="step2-student-id"></span>)</p>
+                <div style="margin: 1.5rem 0;">
+                    <a id="assessment-link" href="#" class="btn btn-primary">
+                        Start Assessment / Rozpocznij test &rarr;
+                    </a>
+                </div>
+                <p class="section-desc">
+                    After the assessment, return here to complete the final step.
+                    <br>
+                    <em>Po teście wróć tutaj, aby zakończyć formularz.</em>
+                </p>
+                <div id="step2-waiting" class="hidden" style="margin-top:1rem;">
+                    <button onclick="checkAssessmentAndProceed()" class="btn btn-secondary">
+                        I've finished the assessment / Skończyłem test &rarr;
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <p class="section-desc" style="text-align:center;">
+                    Or skip the assessment and set your level manually:
+                    <br>
+                    <em>Lub pomiń test i ustaw poziom ręcznie:</em>
+                </p>
+                <div class="radio-group" id="manual-level-options">
                     <label class="radio-label">
-                        <input type="radio" name="current_level" value="A1" required>
+                        <input type="radio" name="manual_level" value="A1">
                         <span>A1 - Beginner / Początkujący</span>
                     </label>
                     <label class="radio-label">
-                        <input type="radio" name="current_level" value="A2">
+                        <input type="radio" name="manual_level" value="A2">
                         <span>A2 - Elementary / Podstawowy</span>
                     </label>
                     <label class="radio-label">
-                        <input type="radio" name="current_level" value="B1">
+                        <input type="radio" name="manual_level" value="B1">
                         <span>B1 - Intermediate / Średniozaawansowany</span>
                     </label>
                     <label class="radio-label">
-                        <input type="radio" name="current_level" value="B2">
+                        <input type="radio" name="manual_level" value="B2">
                         <span>B2 - Upper Intermediate / Powyżej średniego</span>
                     </label>
                     <label class="radio-label">
-                        <input type="radio" name="current_level" value="C1">
+                        <input type="radio" name="manual_level" value="C1">
                         <span>C1 - Advanced / Zaawansowany</span>
                     </label>
                     <label class="radio-label">
-                        <input type="radio" name="current_level" value="C2">
+                        <input type="radio" name="manual_level" value="C2">
                         <span>C2 - Proficient / Biegły</span>
                     </label>
                 </div>
-            </section>
-
-            <section class="form-section">
-                <h2>Learning Goals / Cele nauki</h2>
-                <div class="checkbox-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="goals" value="conversational">
-                        <span>Conversational / Konwersacje</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="goals" value="academic">
-                        <span>Academic / Akademicki</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="goals" value="business">
-                        <span>Business / Biznesowy</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="goals" value="travel">
-                        <span>Travel / Podróże</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="goals" value="exams">
-                        <span>Exams / Egzaminy</span>
-                    </label>
+                <div class="form-actions">
+                    <button onclick="skipAssessment()" class="btn btn-sm" style="background:#7f8c8d;color:white;">
+                        Skip &amp; use manual level / Pomiń test
+                    </button>
                 </div>
-            </section>
-
-            <section class="form-section">
-                <h2>Problem Areas / Trudności</h2>
-                <p class="section-desc">Select areas where the student struggles / Zaznacz obszary, w których uczeń ma trudności</p>
-                <div class="checkbox-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="problem_areas" value="articles">
-                        <span>Articles (a/the) - Przedimki</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="problem_areas" value="prepositions">
-                        <span>Prepositions (in/on/at) - Przyimki</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="problem_areas" value="word_order">
-                        <span>Word order - Szyk zdania</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="problem_areas" value="th_sounds">
-                        <span>"th" sounds - Wymowa "th"</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="problem_areas" value="tenses">
-                        <span>Tenses (present/past/future) - Czasy</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="problem_areas" value="false_friends">
-                        <span>False friends - Fałszywi przyjaciele</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="problem_areas" value="conditionals">
-                        <span>Conditionals - Tryby warunkowe</span>
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="problem_areas" value="phrasal_verbs">
-                        <span>Phrasal verbs - Czasowniki frazowe</span>
-                    </label>
-                </div>
-            </section>
-
-            <section class="form-section">
-                <h2>Filled out by / Wypełnia</h2>
-                <div class="radio-group">
-                    <label class="radio-label">
-                        <input type="radio" name="filler" value="student" checked>
-                        <span>Student / Uczeń</span>
-                    </label>
-                    <label class="radio-label">
-                        <input type="radio" name="filler" value="teacher">
-                        <span>Teacher / Nauczyciel</span>
-                    </label>
-                    <label class="radio-label">
-                        <input type="radio" name="filler" value="parent">
-                        <span>Parent / Rodzic</span>
-                    </label>
-                </div>
-            </section>
-
-            <section class="form-section">
-                <h2>Additional Notes / Dodatkowe uwagi</h2>
-                <div class="form-group">
-                    <textarea id="additional_notes" name="additional_notes" rows="4"
-                        placeholder="Any additional information about the student's learning needs...&#10;Dodatkowe informacje o potrzebach edukacyjnych ucznia..."></textarea>
-                </div>
-            </section>
-
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Submit / Wyślij</button>
             </div>
-        </form>
+        </div>
 
+        <!-- Step 3: Goals & Problem Areas -->
+        <div id="step3-content" class="hidden">
+            <form id="step3-form">
+                <!-- Assessment result summary (shown if assessment was completed) -->
+                <div id="assessment-summary" class="result-panel hidden" style="margin-bottom:1rem;">
+                    <h2>Assessment Result / Wynik testu</h2>
+                    <p>Level: <strong id="summary-level"></strong> (Confidence: <span id="summary-confidence"></span>)</p>
+                    <div id="summary-weak-areas"></div>
+                </div>
+
+                <section class="form-section">
+                    <h2>Learning Goals / Cele nauki</h2>
+                    <p class="section-desc">
+                        What do you want to achieve? / Co chcesz osiągnąć?
+                    </p>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="goals" value="conversational">
+                            <span>Conversational / Konwersacje</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="goals" value="academic">
+                            <span>Academic / Akademicki</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="goals" value="business">
+                            <span>Business / Biznesowy</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="goals" value="travel">
+                            <span>Travel / Podróże</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="goals" value="exams">
+                            <span>Exams / Egzaminy</span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h2>Problem Areas / Trudności</h2>
+                    <p class="section-desc" id="problems-desc">
+                        Select areas where the student struggles / Zaznacz obszary, w których uczeń ma trudności
+                    </p>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="problem_areas" value="articles">
+                            <span>Articles (a/the) - Przedimki</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="problem_areas" value="prepositions">
+                            <span>Prepositions (in/on/at) - Przyimki</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="problem_areas" value="word_order">
+                            <span>Word order - Szyk zdania</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="problem_areas" value="th_sounds">
+                            <span>"th" sounds - Wymowa "th"</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="problem_areas" value="tenses">
+                            <span>Tenses (present/past/future) - Czasy</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="problem_areas" value="false_friends">
+                            <span>False friends - Fałszywi przyjaciele</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="problem_areas" value="conditionals">
+                            <span>Conditionals - Tryby warunkowe</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="problem_areas" value="phrasal_verbs">
+                            <span>Phrasal verbs - Czasowniki frazowe</span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h2>Additional Notes / Dodatkowe uwagi</h2>
+                    <div class="form-group">
+                        <textarea id="additional_notes" name="additional_notes" rows="4"
+                            placeholder="Any additional information about the student's learning needs...&#10;Dodatkowe informacje o potrzebach edukacyjnych ucznia..."></textarea>
+                    </div>
+                </section>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Complete Registration / Zakończ rejestrację</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Final success -->
         <div id="result" class="result-panel hidden">
-            <h2>Submission Successful!</h2>
-            <p>Student ID: <span id="student-id"></span></p>
+            <h2>Registration Complete! / Rejestracja zakończona!</h2>
+            <p>Student ID: <span id="final-student-id"></span></p>
+            <p>Level: <strong id="final-level"></strong></p>
             <div class="result-actions">
-                <button onclick="runDiagnostic()" class="btn btn-secondary">Run Diagnostic / Uruchom diagnostykę</button>
-                <a href="/dashboard" class="btn btn-secondary">Go to Dashboard / Przejdź do panelu</a>
+                <a href="#" onclick="APP.goHomeByRole(); return false;" class="btn btn-secondary">Go to Dashboard / Przejdź do panelu</a>
+                <button onclick="runDiagnostic()" class="btn btn-sm" style="background:#7f8c8d;color:white;">
+                    Run AI Diagnostic / Uruchom diagnostykę AI
+                </button>
             </div>
             <div id="diagnostic-result" class="hidden">
                 <h3>Diagnostic Profile / Profil diagnostyczny</h3>
@@ -166,9 +263,15 @@
         </div>
 
         <footer>
-            <a href="/dashboard">Teacher Dashboard / Panel nauczyciela</a>
+            <a href="dashboard.html">Teacher Dashboard / Panel nauczyciela</a>
         </footer>
     </div>
-    <script src="/js/intake.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/intake.js"></script>
+    <script>AUTH.addAuthLinks();</script>
 </body>
 </html>

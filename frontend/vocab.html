@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary - Slownictwo</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="site-nav" id="site-nav">
+            <a href="dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="#" class="active" id="nav-vocab">Vocabulary</a>
+                <a href="#" id="nav-conversation">Conversation</a>
+                <a href="#" id="nav-session">Session</a>
+            </div>
+            <span class="nav-student" id="nav-student-name"></span>
+        </nav>
+
+        <div class="dashboard-header">
+            <div>
+                <h1>Vocabulary Cards</h1>
+                <p class="subtitle">Karty slownictwa</p>
+            </div>
+            <a href="dashboard.html" class="btn btn-sm">Back to Dashboard / Powrot</a>
+        </div>
+
+        <div id="vocab-stats" class="vocab-stats-bar">
+            <div class="loading">Loading...</div>
+        </div>
+
+        <div class="vocab-tabs">
+            <button class="tab active" onclick="showVocabSection('review')">Review / Powtorka</button>
+            <button class="tab" onclick="showVocabSection('add')">Add Card / Dodaj</button>
+            <button class="tab" onclick="showVocabSection('all')">All Cards / Wszystkie</button>
+        </div>
+
+        <div id="section-review" class="vocab-section active">
+            <div id="flashcard-area">
+                <div class="loading">Loading cards...</div>
+            </div>
+        </div>
+
+        <div id="section-add" class="vocab-section" style="display:none;">
+            <div class="detail-panel">
+                <h3>Add New Card / Dodaj nowa karte</h3>
+                <form id="add-card-form" onsubmit="addCard(event)">
+                    <div class="form-group">
+                        <label for="card-word">Word / Slowo:</label>
+                        <input type="text" id="card-word" required placeholder="e.g. however">
+                    </div>
+                    <div class="form-group">
+                        <label for="card-translation">Translation / Tlumaczenie:</label>
+                        <input type="text" id="card-translation" required placeholder="e.g. jednak, jednakze">
+                    </div>
+                    <div class="form-group">
+                        <label for="card-example">Example / Przyklad:</label>
+                        <input type="text" id="card-example" placeholder="e.g. However, I think we should try.">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Card / Dodaj karte</button>
+                </form>
+                <div id="add-card-message"></div>
+            </div>
+        </div>
+
+        <div id="section-all" class="vocab-section" style="display:none;">
+            <div id="all-cards-list">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <footer>
+            <a href="dashboard.html">Dashboard / Panel</a> |
+            <a href="index.html">Intake Form / Formularz</a>
+        </footer>
+    </div>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/celebrations.js"></script>
+    <script src="js/vocab.js"></script>
+    <script>
+        // Set nav links with student_id
+        if (studentId) {
+            document.getElementById('nav-vocab').href = `vocab.html?student_id=${studentId}`;
+            document.getElementById('nav-conversation').href = `conversation.html?student_id=${studentId}`;
+            document.getElementById('nav-session').href = `session.html?student_id=${studentId}`;
+            apiFetch(`/api/intake/${studentId}`).then(r=>r.json()).then(s=>{
+                document.getElementById('nav-student-name').innerHTML = `<strong>${s.name||''}</strong> (${s.current_level||''})`;
+            }).catch(()=>{});
+        }
+    </script>
+</body>
+</html>

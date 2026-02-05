@@ -16,7 +16,7 @@ class EnglishLevel(str, Enum):
 class StudentIntake(BaseModel):
     name: str
     age: Optional[int] = None
-    current_level: EnglishLevel
+    current_level: Optional[EnglishLevel] = None
     goals: list[str] = []
     problem_areas: list[str] = []
     filler: str = "student"  # student / teacher / parent

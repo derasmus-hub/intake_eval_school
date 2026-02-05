@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Logowanie</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="site-nav">
+            <a href="login.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="login.html" class="active">Login</a>
+                <a href="register.html">Register</a>
+            </div>
+        </nav>
+
+        <div class="form-section" style="max-width:400px;margin:2rem auto;">
+            <h2>Login / Logowanie</h2>
+            <p class="section-desc">Sign in to your account. / Zaloguj sie na swoje konto.</p>
+
+            <div id="error-message" class="error-banner hidden"></div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" required placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password / Haslo</label>
+                    <input type="password" id="password" required placeholder="Enter password">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="login-btn">Login / Zaloguj</button>
+                </div>
+            </form>
+
+            <p style="text-align:center;margin-top:1rem;">
+                No account? / Nie masz konta?
+                <a href="register.html">Register / Zarejestruj sie</a>
+            </p>
+        </div>
+
+        <footer>
+            <a href="index.html">Intake Form</a> | <a href="dashboard.html">Dashboard</a>
+        </footer>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        // Show session-expired message if redirected from a 401
+        (function () {
+            var msg = sessionStorage.getItem('state_error');
+            if (msg) {
+                var el = document.getElementById('error-message');
+                el.textContent = msg;
+                el.classList.remove('hidden');
+                sessionStorage.removeItem('state_error');
+            }
+        })();
+
+        // If already logged in, redirect to role-appropriate dashboard
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+            apiFetch('/api/auth/me', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            }).then(r => {
+                if (r.ok) APP.goHomeByRole();
+            }).catch(() => {});
+        }
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('login-btn');
+            const errEl = document.getElementById('error-message');
+            btn.disabled = true;
+            btn.textContent = 'Logging in...';
+            errEl.classList.add('hidden');
+
+            try {
+                const resp = await apiFetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('email').value,
+                        password: document.getElementById('password').value,
+                    }),
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    errEl.textContent = err.detail || 'Login failed';
+                    errEl.classList.remove('hidden');
+                    btn.disabled = false;
+                    btn.textContent = 'Login / Zaloguj';
+                    return;
+                }
+
+                const data = await resp.json();
+                localStorage.setItem('auth_token', data.token);
+                localStorage.setItem('auth_student_id', data.student_id);
+                localStorage.setItem('auth_student_name', data.name);
+                localStorage.setItem('auth_student_email', data.email);
+                STATE.setStudentId(data.student_id);
+
+                // Redirect based on role (encoded in JWT)
+                APP.goHomeByRole();
+            } catch (err) {
+                errEl.textContent = 'Network error: ' + err.message;
+                errEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Login / Zaloguj';
+            }
+        });
+    </script>
+</body>
+</html>

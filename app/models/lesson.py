@@ -3,6 +3,41 @@ from typing import Optional
 from datetime import datetime
 
 
+class WarmUp(BaseModel):
+    description: str = ""
+    activity: str = ""
+    duration_minutes: int = 5
+    materials: Optional[list[str]] = None
+
+
+class Presentation(BaseModel):
+    topic: str = ""
+    explanation: str = ""
+    polish_explanation: str = ""
+    examples: list[str] = []
+    visual_aid: Optional[str] = None
+
+
+class ControlledPractice(BaseModel):
+    exercises: list[dict] = []
+    instructions: str = ""
+    instructions_pl: Optional[str] = None
+
+
+class FreePractice(BaseModel):
+    activity: str = ""
+    description: str = ""
+    prompts: list[str] = []
+    success_criteria: Optional[str] = None
+
+
+class WrapUp(BaseModel):
+    summary: str = ""
+    homework: Optional[str] = None
+    next_preview: Optional[str] = None
+    win_activity: str = ""
+
+
 class LessonContent(BaseModel):
     objective: str = ""
     polish_explanation: str = ""
@@ -10,6 +45,12 @@ class LessonContent(BaseModel):
     conversation_prompts: list[str] = []
     win_activity: str = ""
     difficulty: str = ""
+    # 5-phase structure (Optional — old lessons won't have these)
+    warm_up: Optional[WarmUp] = None
+    presentation: Optional[Presentation] = None
+    controlled_practice: Optional[ControlledPractice] = None
+    free_practice: Optional[FreePractice] = None
+    wrap_up: Optional[WrapUp] = None
 
 
 class LessonResponse(BaseModel):

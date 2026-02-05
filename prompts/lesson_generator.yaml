@@ -8,19 +8,40 @@ system_prompt: |
   4. Include conversation prompts for teacher-student practice
   5. End with a "win" activity the student can accomplish successfully
 
-  LESSON STRUCTURE:
-  Each lesson must include:
-  - A clear learning objective
-  - A Polish explanation of the grammar/vocabulary concept
-  - 3-5 graded exercises of different types:
-    * fill_in: Fill in the blank
-    * translate: Translate from Polish to English or vice versa
-    * reorder: Put words in correct order
-    * correct_error: Find and fix the mistake
-    * multiple_choice: Choose the correct option
-  - 2-3 conversation prompts for speaking practice
-  - A "win" activity: something achievable that builds confidence
-  - Difficulty rating matching the student's level
+  LESSON STRUCTURE (5-phase model):
+  Every lesson follows five phases:
+
+  1. WARM-UP (5 min) — Activate prior knowledge, set context
+     - A short activity to engage the student and connect to the topic
+     - Can be a quick review question, a picture, a short dialogue, etc.
+
+  2. PRESENTATION (10 min) — Introduce the target language
+     - Clear explanation of the grammar/vocabulary concept
+     - Polish explanation (Wyjaśnienie po polsku) for key concepts
+     - 2-3 clear examples showing the target structure in context
+     - Optional visual aid description
+
+  3. CONTROLLED PRACTICE (15 min) — Guided exercises
+     - 3-5 graded exercises of different types:
+       * fill_in: Fill in the blank
+       * translate: Translate from Polish to English or vice versa
+       * reorder: Put words in correct order
+       * correct_error: Find and fix the mistake
+       * multiple_choice: Choose the correct option
+     - Clear instructions in English and Polish
+
+  4. FREE PRACTICE (10 min) — Communicative use
+     - An activity where the student uses the target language freely
+     - 2-3 conversation prompts or a roleplay scenario
+     - Success criteria for the teacher to evaluate
+
+  5. WRAP-UP (5 min) — Review and close
+     - Brief summary of what was learned
+     - A "win" activity: something achievable that builds confidence
+     - Optional homework assignment
+     - Preview of next session topic
+
+  The lesson MUST also include backward-compatible flat fields (objective, polish_explanation, exercises, conversation_prompts, win_activity, difficulty) that mirror the structured content.
 
   ADAPTATION RULES (CRITICAL - you MUST follow these):
   - NEVER repeat the same topic area as the previous lesson unless the student scored below 50% on it
@@ -47,7 +68,46 @@ system_prompt: |
     ],
     "conversation_prompts": ["string"],
     "win_activity": "string - confidence-building task",
-    "difficulty": "A1|A2|B1|B2|C1|C2"
+    "difficulty": "A1|A2|B1|B2|C1|C2",
+    "warm_up": {
+      "description": "string - what the warm-up achieves",
+      "activity": "string - specific warm-up activity",
+      "duration_minutes": 5,
+      "materials": ["string - any materials needed"]
+    },
+    "presentation": {
+      "topic": "string - the grammar/vocab topic",
+      "explanation": "string - clear English explanation",
+      "polish_explanation": "string - explanation in Polish",
+      "examples": ["string - example sentences showing the target structure"],
+      "visual_aid": "string or null - description of a visual aid"
+    },
+    "controlled_practice": {
+      "exercises": [
+        {
+          "type": "fill_in|translate|reorder|correct_error|multiple_choice",
+          "instruction": "string",
+          "instruction_pl": "string",
+          "content": "string",
+          "answer": "string",
+          "hint": "string"
+        }
+      ],
+      "instructions": "string - overall instructions for this phase",
+      "instructions_pl": "string - instructions in Polish"
+    },
+    "free_practice": {
+      "activity": "string - activity type (roleplay, discussion, etc.)",
+      "description": "string - detailed activity description",
+      "prompts": ["string - conversation/activity prompts"],
+      "success_criteria": "string - what good performance looks like"
+    },
+    "wrap_up": {
+      "summary": "string - what was learned today",
+      "homework": "string or null - homework assignment",
+      "next_preview": "string or null - what's coming next",
+      "win_activity": "string - confidence-building closing task"
+    }
   }
 
 user_template: |
@@ -68,8 +128,14 @@ user_template: |
   PROGRESS HISTORY:
   {progress_history}
 
+  RECALL WEAK AREAS (from recent warm-up quiz):
+  {recall_weak_areas}
+
   IMPORTANT INSTRUCTIONS:
   - Do NOT repeat a topic that was already covered in a previous lesson if the student scored above 50% on it.
   - If there are "areas_struggling" in progress data, you MUST focus on one of those areas.
+  - If recall_weak_areas are listed (not "None"), incorporate review of those areas into the lesson warm-up or controlled practice. These are topics the student struggled with in their recall quiz.
   - If all previous lessons were on the same topic and scores are above 80%, SWITCH to a different priority area.
   - Create a lesson that focuses on the area that needs the most work RIGHT NOW.
+  - Generate ALL five phases (warm_up, presentation, controlled_practice, free_practice, wrap_up).
+  - Also populate the flat fields (objective, exercises, conversation_prompts, win_activity, difficulty) for backward compatibility.

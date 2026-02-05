@@ -2,6 +2,9 @@ import json
 from fastapi import APIRouter, HTTPException
 from app.models.lesson import ProgressEntry, ProgressResponse, ProgressSummary
 from app.db.database import get_db
+from app.services.xp_engine import award_xp, update_streak
+from app.services.achievement_checker import check_achievements
+from app.routes.challenges import update_challenge_progress
 
 router = APIRouter(prefix="/api", tags=["progress"])
 
@@ -41,6 +44,21 @@ async def submit_progress(lesson_id: int, entry: ProgressEntry):
         # Update lesson status
         await db.execute("UPDATE lessons SET status = 'completed' WHERE id = ?", (lesson_id,))
         await db.commit()
+
+        # Award XP for lesson completion
+        xp_amount = 50
+        if entry.score and entry.score >= 90:
+            xp_amount = 75  # Bonus for high score
+        await award_xp(entry.student_id, xp_amount, "lesson_complete", f"Lesson {lesson_id}: {entry.score}%")
+
+        # Update streak and check achievements
+        await update_streak(entry.student_id)
+        await check_achievements(entry.student_id, {"action": "lesson_complete", "score": entry.score})
+
+        # Update challenge progress
+        await update_challenge_progress(entry.student_id, "complete_lesson")
+        if entry.score and entry.score >= 90:
+            await update_challenge_progress(entry.student_id, "high_score")
 
         progress_id = cursor.lastrowid
         return ProgressResponse(

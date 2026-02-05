@@ -1,7 +1,9 @@
 import json
+from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
 from app.models.lesson import LessonResponse, LessonContent
 from app.services.lesson_generator import generate_lesson
+from app.services.learning_point_extractor import extract_learning_points
 from app.db.database import get_db
 
 router = APIRouter(prefix="/api", tags=["lessons"])
@@ -70,6 +72,23 @@ async def generate_next_lesson(student_id: int):
             if obj:
                 previous_topics.append(obj)
 
+        # Check for recall weak areas from most recent completed recall session
+        recall_weak_areas = None
+        cursor = await db.execute(
+            """SELECT weak_areas FROM recall_sessions
+               WHERE student_id = ? AND status = 'completed'
+               ORDER BY completed_at DESC LIMIT 1""",
+            (student_id,),
+        )
+        recall_row = await cursor.fetchone()
+        if recall_row and recall_row["weak_areas"]:
+            try:
+                recall_weak_areas = json.loads(recall_row["weak_areas"])
+                if not recall_weak_areas:
+                    recall_weak_areas = None
+            except (json.JSONDecodeError, TypeError):
+                recall_weak_areas = None
+
         # Generate lesson
         lesson_content = await generate_lesson(
             student_id=student_id,
@@ -78,6 +97,7 @@ async def generate_next_lesson(student_id: int):
             session_number=session_number,
             current_level=student["current_level"],
             previous_topics=previous_topics,
+            recall_weak_areas=recall_weak_areas,
         )
 
         # Save to database
@@ -165,5 +185,68 @@ async def get_lesson(student_id: int, lesson_id: int):
             status=row["status"],
             created_at=row["created_at"],
         )
+    finally:
+        await db.close()
+
+
+@router.post("/lessons/{lesson_id}/complete")
+async def complete_lesson(lesson_id: int):
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT * FROM lessons WHERE id = ?", (lesson_id,))
+        lesson = await cursor.fetchone()
+        if not lesson:
+            raise HTTPException(status_code=404, detail="Lesson not found")
+
+        student_id = lesson["student_id"]
+
+        # Get student level
+        cursor = await db.execute(
+            "SELECT current_level FROM students WHERE id = ?", (student_id,)
+        )
+        student = await cursor.fetchone()
+        student_level = student["current_level"] if student else "A1"
+
+        # Parse lesson content
+        content = {}
+        if lesson["content"]:
+            try:
+                content = json.loads(lesson["content"])
+            except (json.JSONDecodeError, TypeError):
+                content = {"objective": lesson["objective"] or ""}
+
+        # Extract learning points via AI
+        points = await extract_learning_points(content, student_level)
+
+        # Insert each point into learning_points table
+        tomorrow = (datetime.utcnow() + timedelta(days=1)).isoformat()
+        inserted_points = []
+        for p in points:
+            cursor = await db.execute(
+                """INSERT INTO learning_points
+                   (student_id, lesson_id, point_type, content, polish_explanation,
+                    example_sentence, importance_weight, next_review_date)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    student_id,
+                    lesson_id,
+                    p.get("point_type", "grammar_rule"),
+                    p.get("content", ""),
+                    p.get("polish_explanation", ""),
+                    p.get("example_sentence", ""),
+                    p.get("importance_weight", 3),
+                    tomorrow,
+                ),
+            )
+            point_id = cursor.lastrowid
+            inserted_points.append({**p, "id": point_id})
+
+        await db.commit()
+
+        return {
+            "lesson_id": lesson_id,
+            "points_extracted": len(inserted_points),
+            "points": inserted_points,
+        }
     finally:
         await db.close()

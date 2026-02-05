@@ -1,0 +1,904 @@
+# Placement Questions - 5 sentences of increasing difficulty
+# Student judges each sentence as correct or incorrect
+placement:
+  - id: 1
+    sentence: "She have a red car."
+    is_correct: false
+    difficulty: 1
+    explanation: "Subject-verb agreement: 'She has' not 'She have'."
+
+  - id: 2
+    sentence: "I went to the shop yesterday and bought some bread."
+    is_correct: true
+    difficulty: 2
+    explanation: "Correct use of past simple with time marker 'yesterday'."
+
+  - id: 3
+    sentence: "If I would have more time, I would travel more."
+    is_correct: false
+    difficulty: 3
+    explanation: "Second conditional requires past simple in the if-clause: 'If I had more time'."
+
+  - id: 4
+    sentence: "Not only did she finish the report, but she also prepared the presentation."
+    is_correct: true
+    difficulty: 4
+    explanation: "Correct inverted word order after 'Not only' with auxiliary 'did'."
+
+  - id: 5
+    sentence: "Had the committee been made aware of the discrepancies sooner, they might have reconsidered their initial assessment."
+    is_correct: true
+    difficulty: 5
+    explanation: "Correct use of third conditional with subject-auxiliary inversion (formal register)."
+
+# Diagnostic Questions - organized by bracket and skill
+# Each bracket has 8+ questions per skill (grammar, vocabulary, reading)
+diagnostic:
+  beginner:
+    grammar:
+      - id: "bg_1"
+        type: "grammar_mcq"
+        question: "Choose the correct sentence:"
+        options:
+          - "She is a teacher."
+          - "She are a teacher."
+          - "She am a teacher."
+          - "She be a teacher."
+        correct_answer: "She is a teacher."
+        topic: "be_verb"
+
+      - id: "bg_2"
+        type: "grammar_mcq"
+        question: "Choose the correct sentence:"
+        options:
+          - "I don't like coffee."
+          - "I doesn't like coffee."
+          - "I not like coffee."
+          - "I no like coffee."
+        correct_answer: "I don't like coffee."
+        topic: "negation"
+
+      - id: "bg_3"
+        type: "grammar_mcq"
+        question: "Which is correct?"
+        options:
+          - "There are three cats in the garden."
+          - "There is three cats in the garden."
+          - "There have three cats in the garden."
+          - "It are three cats in the garden."
+        correct_answer: "There are three cats in the garden."
+        topic: "there_is_are"
+
+      - id: "bg_4"
+        type: "grammar_mcq"
+        question: "Choose the correct sentence:"
+        options:
+          - "He goes to school every day."
+          - "He go to school every day."
+          - "He going to school every day."
+          - "He goed to school every day."
+        correct_answer: "He goes to school every day."
+        topic: "present_simple"
+
+      - id: "bg_5"
+        type: "grammar_mcq"
+        question: "Which sentence is correct?"
+        options:
+          - "I am reading a book right now."
+          - "I read a book right now."
+          - "I reading a book right now."
+          - "I am read a book right now."
+        correct_answer: "I am reading a book right now."
+        topic: "present_continuous"
+
+      - id: "bg_6"
+        type: "grammar_mcq"
+        question: "Choose the correct answer:"
+        options:
+          - "She can swim very well."
+          - "She cans swim very well."
+          - "She can swims very well."
+          - "She can to swim very well."
+        correct_answer: "She can swim very well."
+        topic: "modal_verbs"
+
+      - id: "bg_7"
+        type: "grammar_mcq"
+        question: "Which is correct?"
+        options:
+          - "I bought a new phone yesterday."
+          - "I buyed a new phone yesterday."
+          - "I buy a new phone yesterday."
+          - "I was buy a new phone yesterday."
+        correct_answer: "I bought a new phone yesterday."
+        topic: "past_simple"
+
+      - id: "bg_8"
+        type: "grammar_mcq"
+        question: "Choose the correct sentence:"
+        options:
+          - "Do you like chocolate?"
+          - "Are you like chocolate?"
+          - "You like chocolate?"
+          - "Does you like chocolate?"
+        correct_answer: "Do you like chocolate?"
+        topic: "questions"
+
+    vocabulary:
+      - id: "bv_1"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'I wake up early in the _____.'"
+        correct_answer: "morning"
+        topic: "time_of_day"
+
+      - id: "bv_2"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'She is wearing a warm _____ because it is cold outside.'"
+        correct_answer: "coat"
+        topic: "clothing"
+
+      - id: "bv_3"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'We eat _____ for breakfast, lunch, and dinner.'"
+        correct_answer: "food"
+        topic: "daily_life"
+
+      - id: "bv_4"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'The opposite of 'hot' is _____.'"
+        correct_answer: "cold"
+        topic: "adjectives"
+
+      - id: "bv_5"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'I go to _____ to buy food and drinks.'"
+        correct_answer: "shop"
+        topic: "places"
+
+      - id: "bv_6"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'My _____ is the person who teaches me at school.'"
+        correct_answer: "teacher"
+        topic: "people"
+
+      - id: "bv_7"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'I use a _____ to call my friends.'"
+        correct_answer: "phone"
+        topic: "technology"
+
+      - id: "bv_8"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'She _____ to music every evening.'"
+        correct_answer: "listens"
+        topic: "activities"
+
+    reading:
+      - id: "br_1"
+        type: "reading_comprehension"
+        passage: |
+          Anna is from Poland. She is 25 years old. She works in a shop in Warsaw.
+          She likes her job because she meets many people. After work, she goes home
+          and cooks dinner. She lives with her cat, Mruczek.
+        question: "Where does Anna work?"
+        options:
+          - "In a shop"
+          - "In a school"
+          - "In a hospital"
+          - "In an office"
+        correct_answer: "In a shop"
+        topic: "basic_comprehension"
+
+      - id: "br_2"
+        type: "reading_comprehension"
+        passage: |
+          Anna is from Poland. She is 25 years old. She works in a shop in Warsaw.
+          She likes her job because she meets many people. After work, she goes home
+          and cooks dinner. She lives with her cat, Mruczek.
+        question: "Why does Anna like her job?"
+        options:
+          - "Because she meets many people"
+          - "Because she earns a lot of money"
+          - "Because it is easy"
+          - "Because she can bring her cat"
+        correct_answer: "Because she meets many people"
+        topic: "basic_comprehension"
+
+      - id: "br_3"
+        type: "reading_comprehension"
+        passage: |
+          Anna is from Poland. She is 25 years old. She works in a shop in Warsaw.
+          She likes her job because she meets many people. After work, she goes home
+          and cooks dinner. She lives with her cat, Mruczek.
+        question: "What does Anna do after work?"
+        options:
+          - "She goes home and cooks dinner"
+          - "She goes to the gym"
+          - "She visits her friends"
+          - "She watches TV"
+        correct_answer: "She goes home and cooks dinner"
+        topic: "basic_comprehension"
+
+      - id: "br_4"
+        type: "reading_comprehension"
+        passage: |
+          Tom wants to learn English. He studies every day for one hour.
+          On Monday he reads books, on Wednesday he watches English films,
+          and on Friday he talks with his English friend on the phone.
+          He thinks speaking is the most difficult part.
+        question: "How often does Tom study English?"
+        options:
+          - "Every day"
+          - "Three times a week"
+          - "Once a week"
+          - "On weekends"
+        correct_answer: "Every day"
+        topic: "detail_extraction"
+
+      - id: "br_5"
+        type: "reading_comprehension"
+        passage: |
+          Tom wants to learn English. He studies every day for one hour.
+          On Monday he reads books, on Wednesday he watches English films,
+          and on Friday he talks with his English friend on the phone.
+          He thinks speaking is the most difficult part.
+        question: "What does Tom find the most difficult?"
+        options:
+          - "Speaking"
+          - "Reading"
+          - "Watching films"
+          - "Writing"
+        correct_answer: "Speaking"
+        topic: "detail_extraction"
+
+      - id: "br_6"
+        type: "reading_comprehension"
+        passage: |
+          Tom wants to learn English. He studies every day for one hour.
+          On Monday he reads books, on Wednesday he watches English films,
+          and on Friday he talks with his English friend on the phone.
+          He thinks speaking is the most difficult part.
+        question: "What does Tom do on Wednesday?"
+        options:
+          - "He watches English films"
+          - "He reads books"
+          - "He talks on the phone"
+          - "He goes to English class"
+        correct_answer: "He watches English films"
+        topic: "detail_extraction"
+
+      - id: "br_7"
+        type: "reading_comprehension"
+        passage: |
+          Maria goes to the market every Saturday. She buys fruit, vegetables,
+          and bread. Sometimes she buys flowers for her mother. The market is
+          near her house, so she walks there. She likes the fresh food.
+        question: "How does Maria get to the market?"
+        options:
+          - "She walks"
+          - "She drives"
+          - "She takes the bus"
+          - "She rides a bicycle"
+        correct_answer: "She walks"
+        topic: "inference"
+
+      - id: "br_8"
+        type: "reading_comprehension"
+        passage: |
+          Maria goes to the market every Saturday. She buys fruit, vegetables,
+          and bread. Sometimes she buys flowers for her mother. The market is
+          near her house, so she walks there. She likes the fresh food.
+        question: "Who does Maria sometimes buy flowers for?"
+        options:
+          - "Her mother"
+          - "Her friend"
+          - "Her teacher"
+          - "Herself"
+        correct_answer: "Her mother"
+        topic: "detail_extraction"
+
+  intermediate:
+    grammar:
+      - id: "ig_1"
+        type: "grammar_mcq"
+        question: "Choose the correct sentence:"
+        options:
+          - "I have been living here since 2015."
+          - "I am living here since 2015."
+          - "I live here since 2015."
+          - "I lived here since 2015."
+        correct_answer: "I have been living here since 2015."
+        topic: "present_perfect_continuous"
+
+      - id: "ig_2"
+        type: "grammar_mcq"
+        question: "Which sentence is correct?"
+        options:
+          - "If I had enough money, I would buy a new car."
+          - "If I would have enough money, I would buy a new car."
+          - "If I have enough money, I would buy a new car."
+          - "If I had enough money, I will buy a new car."
+        correct_answer: "If I had enough money, I would buy a new car."
+        topic: "second_conditional"
+
+      - id: "ig_3"
+        type: "grammar_mcq"
+        question: "Choose the correct option:"
+        options:
+          - "She told me that she was going to the party."
+          - "She told me that she is going to the party."
+          - "She told to me that she was going to the party."
+          - "She told me that she goes to the party."
+        correct_answer: "She told me that she was going to the party."
+        topic: "reported_speech"
+
+      - id: "ig_4"
+        type: "grammar_mcq"
+        question: "Which is correct?"
+        options:
+          - "The book that I borrowed from the library was fascinating."
+          - "The book what I borrowed from the library was fascinating."
+          - "The book who I borrowed from the library was fascinating."
+          - "The book which I borrowed it from the library was fascinating."
+        correct_answer: "The book that I borrowed from the library was fascinating."
+        topic: "relative_clauses"
+
+      - id: "ig_5"
+        type: "grammar_mcq"
+        question: "Choose the correct sentence:"
+        options:
+          - "I wish I had studied harder for the exam."
+          - "I wish I studied harder for the exam."
+          - "I wish I would study harder for the exam."
+          - "I wish I have studied harder for the exam."
+        correct_answer: "I wish I had studied harder for the exam."
+        topic: "wish_clauses"
+
+      - id: "ig_6"
+        type: "grammar_mcq"
+        question: "Which sentence uses the passive voice correctly?"
+        options:
+          - "The window was broken by the children."
+          - "The window broken by the children."
+          - "The window is break by the children."
+          - "The window was break by the children."
+        correct_answer: "The window was broken by the children."
+        topic: "passive_voice"
+
+      - id: "ig_7"
+        type: "grammar_mcq"
+        question: "Choose the correct sentence:"
+        options:
+          - "By the time I arrived, they had already left."
+          - "By the time I arrived, they already left."
+          - "By the time I arrived, they have already left."
+          - "By the time I arrived, they were already leaving."
+        correct_answer: "By the time I arrived, they had already left."
+        topic: "past_perfect"
+
+      - id: "ig_8"
+        type: "grammar_mcq"
+        question: "Which is correct?"
+        options:
+          - "You should have told me about the problem earlier."
+          - "You should told me about the problem earlier."
+          - "You should to have told me about the problem earlier."
+          - "You should had told me about the problem earlier."
+        correct_answer: "You should have told me about the problem earlier."
+        topic: "modal_perfects"
+
+    vocabulary:
+      - id: "iv_1"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'The manager decided to _____ the meeting until next week.'"
+        correct_answer: "postpone"
+        topic: "business"
+
+      - id: "iv_2"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'After the argument, they tried to find a _____ that would satisfy both sides.'"
+        correct_answer: "compromise"
+        topic: "conflict_resolution"
+
+      - id: "iv_3"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'She has a very busy _____ this week, with meetings every day.'"
+        correct_answer: "schedule"
+        topic: "time_management"
+
+      - id: "iv_4"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'The company is looking for someone with _____ in project management.'"
+        correct_answer: "experience"
+        topic: "work"
+
+      - id: "iv_5"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'I need to _____ my English before the interview next month.'"
+        correct_answer: "improve"
+        topic: "self_development"
+
+      - id: "iv_6"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'The doctor gave her a _____ for the medicine she needed.'"
+        correct_answer: "prescription"
+        topic: "health"
+
+      - id: "iv_7"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'We need to _____ a solution to this problem as soon as possible.'"
+        correct_answer: "find"
+        topic: "problem_solving"
+
+      - id: "iv_8"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'The weather _____ says it will rain tomorrow.'"
+        correct_answer: "forecast"
+        topic: "weather"
+
+    reading:
+      - id: "ir_1"
+        type: "reading_comprehension"
+        passage: |
+          Remote work has become increasingly popular since 2020. Many companies
+          have discovered that employees can be just as productive working from home
+          as they are in the office. However, some workers report feeling isolated
+          and missing the social aspects of office life. Companies are now trying
+          to find a balance between flexibility and team connection, with many
+          adopting a hybrid model where employees work from home two or three
+          days a week and come to the office for the rest.
+        question: "What is the main challenge of remote work mentioned in the text?"
+        options:
+          - "Workers feeling isolated and missing social interaction"
+          - "Lower productivity at home"
+          - "Technical problems with internet"
+          - "Managers not trusting employees"
+        correct_answer: "Workers feeling isolated and missing social interaction"
+        topic: "main_idea"
+
+      - id: "ir_2"
+        type: "reading_comprehension"
+        passage: |
+          Remote work has become increasingly popular since 2020. Many companies
+          have discovered that employees can be just as productive working from home
+          as they are in the office. However, some workers report feeling isolated
+          and missing the social aspects of office life. Companies are now trying
+          to find a balance between flexibility and team connection, with many
+          adopting a hybrid model where employees work from home two or three
+          days a week and come to the office for the rest.
+        question: "What is a 'hybrid model' according to the text?"
+        options:
+          - "Working some days at home and some days at the office"
+          - "Using both a computer and paper documents"
+          - "Having two different jobs at the same time"
+          - "Working for two different companies"
+        correct_answer: "Working some days at home and some days at the office"
+        topic: "vocabulary_in_context"
+
+      - id: "ir_3"
+        type: "reading_comprehension"
+        passage: |
+          Remote work has become increasingly popular since 2020. Many companies
+          have discovered that employees can be just as productive working from home
+          as they are in the office. However, some workers report feeling isolated
+          and missing the social aspects of office life. Companies are now trying
+          to find a balance between flexibility and team connection, with many
+          adopting a hybrid model where employees work from home two or three
+          days a week and come to the office for the rest.
+        question: "What have companies discovered about remote workers' productivity?"
+        options:
+          - "They can be equally productive at home"
+          - "They are always more productive at home"
+          - "They need supervision to be productive"
+          - "They are less productive but happier"
+        correct_answer: "They can be equally productive at home"
+        topic: "detail_extraction"
+
+      - id: "ir_4"
+        type: "reading_comprehension"
+        passage: |
+          Learning a second language as an adult is different from learning as a child.
+          Children acquire language naturally through exposure, while adults tend to
+          rely more on explicit grammar rules and translation. However, research shows
+          that adults have some advantages: they can use their knowledge of their first
+          language to understand patterns, they have better study habits, and they are
+          more motivated. The key for adult learners is consistent practice and not
+          being afraid to make mistakes.
+        question: "According to the text, what advantage do adult learners have?"
+        options:
+          - "They can use their first language knowledge to find patterns"
+          - "They learn faster than children"
+          - "They don't need grammar rules"
+          - "They never make mistakes"
+        correct_answer: "They can use their first language knowledge to find patterns"
+        topic: "detail_extraction"
+
+      - id: "ir_5"
+        type: "reading_comprehension"
+        passage: |
+          Learning a second language as an adult is different from learning as a child.
+          Children acquire language naturally through exposure, while adults tend to
+          rely more on explicit grammar rules and translation. However, research shows
+          that adults have some advantages: they can use their knowledge of their first
+          language to understand patterns, they have better study habits, and they are
+          more motivated. The key for adult learners is consistent practice and not
+          being afraid to make mistakes.
+        question: "What is 'the key' for adult language learners?"
+        options:
+          - "Consistent practice and not fearing mistakes"
+          - "Studying grammar rules every day"
+          - "Living in an English-speaking country"
+          - "Having a private tutor"
+        correct_answer: "Consistent practice and not fearing mistakes"
+        topic: "main_idea"
+
+      - id: "ir_6"
+        type: "reading_comprehension"
+        passage: |
+          Learning a second language as an adult is different from learning as a child.
+          Children acquire language naturally through exposure, while adults tend to
+          rely more on explicit grammar rules and translation. However, research shows
+          that adults have some advantages: they can use their knowledge of their first
+          language to understand patterns, they have better study habits, and they are
+          more motivated. The key for adult learners is consistent practice and not
+          being afraid to make mistakes.
+        question: "How do children learn language differently from adults?"
+        options:
+          - "Children acquire it naturally through exposure"
+          - "Children study grammar books"
+          - "Children use translation apps"
+          - "Children learn only at school"
+        correct_answer: "Children acquire it naturally through exposure"
+        topic: "comparison"
+
+      - id: "ir_7"
+        type: "reading_comprehension"
+        passage: |
+          The number of people learning English worldwide continues to grow. It is
+          estimated that about 1.5 billion people are currently learning English,
+          making it the most studied language in the world. English is important for
+          international business, science, and technology. In Poland, English is taught
+          from primary school, and many Poles speak English at an intermediate level
+          or higher. Despite this, many Polish professionals still feel that their
+          English is not good enough for their careers.
+        question: "What can be inferred about Polish professionals from the text?"
+        options:
+          - "Many want to improve their English further for work"
+          - "They all speak English fluently"
+          - "They prefer to learn German instead"
+          - "They don't need English for their jobs"
+        correct_answer: "Many want to improve their English further for work"
+        topic: "inference"
+
+      - id: "ir_8"
+        type: "reading_comprehension"
+        passage: |
+          The number of people learning English worldwide continues to grow. It is
+          estimated that about 1.5 billion people are currently learning English,
+          making it the most studied language in the world. English is important for
+          international business, science, and technology. In Poland, English is taught
+          from primary school, and many Poles speak English at an intermediate level
+          or higher. Despite this, many Polish professionals still feel that their
+          English is not good enough for their careers.
+        question: "At what level do many Poles speak English?"
+        options:
+          - "Intermediate or higher"
+          - "Beginner"
+          - "Native level"
+          - "The text doesn't say"
+        correct_answer: "Intermediate or higher"
+        topic: "detail_extraction"
+
+  advanced:
+    grammar:
+      - id: "ag_1"
+        type: "grammar_mcq"
+        question: "Choose the correct sentence:"
+        options:
+          - "Had I known about the delay, I would have taken a different route."
+          - "If I had known about the delay, I would took a different route."
+          - "Had I known about the delay, I would took a different route."
+          - "If I would have known about the delay, I had taken a different route."
+        correct_answer: "Had I known about the delay, I would have taken a different route."
+        topic: "third_conditional_inversion"
+
+      - id: "ag_2"
+        type: "grammar_mcq"
+        question: "Which sentence is correct?"
+        options:
+          - "The report, which was submitted last Friday, contained several inaccuracies."
+          - "The report, that was submitted last Friday, contained several inaccuracies."
+          - "The report which, was submitted last Friday, contained several inaccuracies."
+          - "The report, which was submitted last Friday contained several inaccuracies."
+        correct_answer: "The report, which was submitted last Friday, contained several inaccuracies."
+        topic: "non_defining_relative_clauses"
+
+      - id: "ag_3"
+        type: "grammar_mcq"
+        question: "Choose the correct option:"
+        options:
+          - "Not until the results were published did the public become aware of the issue."
+          - "Not until the results were published the public became aware of the issue."
+          - "Not until the results were published the public did become aware of the issue."
+          - "Not until the results published did the public become aware of the issue."
+        correct_answer: "Not until the results were published did the public become aware of the issue."
+        topic: "inversion_after_negative_adverbials"
+
+      - id: "ag_4"
+        type: "grammar_mcq"
+        question: "Which is correct?"
+        options:
+          - "The proposal is to be reviewed by the board before any decision is made."
+          - "The proposal is being to review by the board before any decision is made."
+          - "The proposal is to being reviewed by the board before any decision is made."
+          - "The proposal is to be reviewing by the board before any decision is made."
+        correct_answer: "The proposal is to be reviewed by the board before any decision is made."
+        topic: "passive_infinitive"
+
+      - id: "ag_5"
+        type: "grammar_mcq"
+        question: "Choose the correct sentence:"
+        options:
+          - "She demanded that he apologize immediately."
+          - "She demanded that he apologizes immediately."
+          - "She demanded that he apologized immediately."
+          - "She demanded that he would apologize immediately."
+        correct_answer: "She demanded that he apologize immediately."
+        topic: "subjunctive"
+
+      - id: "ag_6"
+        type: "grammar_mcq"
+        question: "Which sentence correctly uses a participle clause?"
+        options:
+          - "Having finished the project, she submitted it to her supervisor."
+          - "Having finished the project, it was submitted to her supervisor."
+          - "Finishing the project, it was submitted to her supervisor."
+          - "Had finishing the project, she submitted it to her supervisor."
+        correct_answer: "Having finished the project, she submitted it to her supervisor."
+        topic: "participle_clauses"
+
+      - id: "ag_7"
+        type: "grammar_mcq"
+        question: "Choose the correct sentence:"
+        options:
+          - "Rarely have I encountered such a well-argued thesis."
+          - "Rarely I have encountered such a well-argued thesis."
+          - "Rarely have I encountered such well-argued thesis."
+          - "Rarely I encountered such a well-argued thesis."
+        correct_answer: "Rarely have I encountered such a well-argued thesis."
+        topic: "inversion_emphasis"
+
+      - id: "ag_8"
+        type: "grammar_mcq"
+        question: "Which is correct?"
+        options:
+          - "Were it not for his quick thinking, the situation could have escalated."
+          - "Was it not for his quick thinking, the situation could have escalated."
+          - "Were it not for his quick thinking, the situation could escalated."
+          - "If it were not for his quick thinking, the situation could have been escalated."
+        correct_answer: "Were it not for his quick thinking, the situation could have escalated."
+        topic: "formal_conditionals"
+
+    vocabulary:
+      - id: "av_1"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'The government's decision to cut funding has _____ widespread criticism from educators.'"
+        correct_answer: "sparked"
+        topic: "formal_register"
+
+      - id: "av_2"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'Despite initial _____, the project turned out to be a great success.'"
+        correct_answer: "skepticism"
+        topic: "abstract_concepts"
+
+      - id: "av_3"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'The two companies decided to _____ forces and create a joint venture.'"
+        correct_answer: "join"
+        topic: "collocations"
+
+      - id: "av_4"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'Her _____ approach to problem-solving made her an invaluable asset to the team.'"
+        correct_answer: "innovative"
+        topic: "professional"
+
+      - id: "av_5"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'The findings of the study _____ the theory that early intervention is effective.'"
+        correct_answer: "support"
+        topic: "academic"
+
+      - id: "av_6"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'He tends to _____ the importance of preparation, which often leads to poor results.'"
+        correct_answer: "underestimate"
+        topic: "prefixes"
+
+      - id: "av_7"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'The new policy aims to _____ the gap between rich and poor communities.'"
+        correct_answer: "bridge"
+        topic: "metaphorical_language"
+
+      - id: "av_8"
+        type: "vocabulary_fill"
+        question: "Complete the sentence: 'The committee will _____ the proposal at their next meeting.'"
+        correct_answer: "review"
+        topic: "formal_processes"
+
+    reading:
+      - id: "ar_1"
+        type: "reading_comprehension"
+        passage: |
+          The phenomenon of code-switching — alternating between two or more languages
+          within a single conversation — has long been viewed negatively by language
+          purists. However, recent linguistic research suggests that code-switching is
+          not a sign of linguistic deficiency but rather an indicator of sophisticated
+          bilingual competence. Speakers who code-switch demonstrate a deep understanding
+          of both languages' grammatical systems, as they must navigate complex rules
+          about where switches can and cannot occur. Furthermore, code-switching serves
+          important social functions: it can signal group identity, emphasize particular
+          points, or fill lexical gaps where one language expresses a concept more
+          precisely than the other.
+        question: "What does recent research suggest about code-switching?"
+        options:
+          - "It indicates sophisticated bilingual ability"
+          - "It shows that speakers are confused between languages"
+          - "It should be discouraged in educational settings"
+          - "It only happens when speakers lack vocabulary"
+        correct_answer: "It indicates sophisticated bilingual ability"
+        topic: "author_argument"
+
+      - id: "ar_2"
+        type: "reading_comprehension"
+        passage: |
+          The phenomenon of code-switching — alternating between two or more languages
+          within a single conversation — has long been viewed negatively by language
+          purists. However, recent linguistic research suggests that code-switching is
+          not a sign of linguistic deficiency but rather an indicator of sophisticated
+          bilingual competence. Speakers who code-switch demonstrate a deep understanding
+          of both languages' grammatical systems, as they must navigate complex rules
+          about where switches can and cannot occur. Furthermore, code-switching serves
+          important social functions: it can signal group identity, emphasize particular
+          points, or fill lexical gaps where one language expresses a concept more
+          precisely than the other.
+        question: "The word 'deficiency' in the text is closest in meaning to:"
+        options:
+          - "Weakness or lack of ability"
+          - "Difference or variety"
+          - "Strength or advantage"
+          - "Preference or choice"
+        correct_answer: "Weakness or lack of ability"
+        topic: "vocabulary_in_context"
+
+      - id: "ar_3"
+        type: "reading_comprehension"
+        passage: |
+          The phenomenon of code-switching — alternating between two or more languages
+          within a single conversation — has long been viewed negatively by language
+          purists. However, recent linguistic research suggests that code-switching is
+          not a sign of linguistic deficiency but rather an indicator of sophisticated
+          bilingual competence. Speakers who code-switch demonstrate a deep understanding
+          of both languages' grammatical systems, as they must navigate complex rules
+          about where switches can and cannot occur. Furthermore, code-switching serves
+          important social functions: it can signal group identity, emphasize particular
+          points, or fill lexical gaps where one language expresses a concept more
+          precisely than the other.
+        question: "Which social function of code-switching is NOT mentioned in the text?"
+        options:
+          - "Showing respect to elders"
+          - "Signaling group identity"
+          - "Emphasizing particular points"
+          - "Filling lexical gaps"
+        correct_answer: "Showing respect to elders"
+        topic: "negative_detail"
+
+      - id: "ar_4"
+        type: "reading_comprehension"
+        passage: |
+          The rise of artificial intelligence in language education presents both
+          opportunities and challenges. AI-powered tools can provide instant feedback
+          on grammar and pronunciation, offer personalized learning paths, and make
+          practice available 24/7. However, critics argue that AI cannot replicate
+          the nuanced understanding of a human teacher who can read body language,
+          adjust explanations in real-time based on student confusion, and provide
+          the emotional support that is crucial for language learning confidence.
+          The most promising approach appears to be a blended model, where AI handles
+          repetitive practice and pattern recognition while human teachers focus on
+          communication skills, cultural context, and motivational coaching.
+        question: "What is the author's position on AI in language education?"
+        options:
+          - "A blended approach combining AI and human teachers is most promising"
+          - "AI should completely replace human teachers"
+          - "Human teachers are always superior to AI"
+          - "AI is not useful for language learning"
+        correct_answer: "A blended approach combining AI and human teachers is most promising"
+        topic: "author_position"
+
+      - id: "ar_5"
+        type: "reading_comprehension"
+        passage: |
+          The rise of artificial intelligence in language education presents both
+          opportunities and challenges. AI-powered tools can provide instant feedback
+          on grammar and pronunciation, offer personalized learning paths, and make
+          practice available 24/7. However, critics argue that AI cannot replicate
+          the nuanced understanding of a human teacher who can read body language,
+          adjust explanations in real-time based on student confusion, and provide
+          the emotional support that is crucial for language learning confidence.
+          The most promising approach appears to be a blended model, where AI handles
+          repetitive practice and pattern recognition while human teachers focus on
+          communication skills, cultural context, and motivational coaching.
+        question: "According to critics, what can human teachers do that AI cannot?"
+        options:
+          - "Read body language and provide emotional support"
+          - "Give instant feedback on grammar"
+          - "Be available 24/7"
+          - "Offer personalized learning paths"
+        correct_answer: "Read body language and provide emotional support"
+        topic: "opposing_viewpoint"
+
+      - id: "ar_6"
+        type: "reading_comprehension"
+        passage: |
+          The rise of artificial intelligence in language education presents both
+          opportunities and challenges. AI-powered tools can provide instant feedback
+          on grammar and pronunciation, offer personalized learning paths, and make
+          practice available 24/7. However, critics argue that AI cannot replicate
+          the nuanced understanding of a human teacher who can read body language,
+          adjust explanations in real-time based on student confusion, and provide
+          the emotional support that is crucial for language learning confidence.
+          The most promising approach appears to be a blended model, where AI handles
+          repetitive practice and pattern recognition while human teachers focus on
+          communication skills, cultural context, and motivational coaching.
+        question: "In the blended model, what role does AI play?"
+        options:
+          - "Handling repetitive practice and pattern recognition"
+          - "Teaching communication skills"
+          - "Providing cultural context"
+          - "Offering motivational coaching"
+        correct_answer: "Handling repetitive practice and pattern recognition"
+        topic: "detail_extraction"
+
+      - id: "ar_7"
+        type: "reading_comprehension"
+        passage: |
+          Linguistic relativity, also known as the Sapir-Whorf hypothesis, posits that
+          the structure of a language affects its speakers' worldview and cognition.
+          The strong version of this hypothesis — that language determines thought —
+          has been largely discredited. However, the weak version — that language
+          influences thought — continues to find empirical support. For instance,
+          speakers of languages with mandatory grammatical gender tend to attribute
+          gendered qualities to inanimate objects, and speakers of languages with
+          absolute spatial reference frames (using cardinal directions instead of
+          left/right) demonstrate superior spatial orientation abilities.
+        question: "What is the difference between the strong and weak versions of the Sapir-Whorf hypothesis?"
+        options:
+          - "Strong: language determines thought; Weak: language influences thought"
+          - "Strong: applies to all languages; Weak: applies only to some"
+          - "Strong: about grammar; Weak: about vocabulary"
+          - "Strong: proven true; Weak: still debated"
+        correct_answer: "Strong: language determines thought; Weak: language influences thought"
+        topic: "distinguishing_concepts"
+
+      - id: "ar_8"
+        type: "reading_comprehension"
+        passage: |
+          Linguistic relativity, also known as the Sapir-Whorf hypothesis, posits that
+          the structure of a language affects its speakers' worldview and cognition.
+          The strong version of this hypothesis — that language determines thought —
+          has been largely discredited. However, the weak version — that language
+          influences thought — continues to find empirical support. For instance,
+          speakers of languages with mandatory grammatical gender tend to attribute
+          gendered qualities to inanimate objects, and speakers of languages with
+          absolute spatial reference frames (using cardinal directions instead of
+          left/right) demonstrate superior spatial orientation abilities.
+        question: "The phrase 'empirical support' most likely means:"
+        options:
+          - "Evidence from experiments and observations"
+          - "Opinions from experts"
+          - "Mathematical proof"
+          - "Historical documentation"
+        correct_answer: "Evidence from experiments and observations"
+        topic: "vocabulary_in_context"

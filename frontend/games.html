@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini-Games - Gry</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="site-nav">
+            <a href="dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="games.html" class="active">Games</a>
+                <a href="leaderboard.html">Leaderboard</a>
+                <a href="profile.html">Profile</a>
+            </div>
+        </nav>
+
+        <header>
+            <h1>Mini-Games</h1>
+            <p class="subtitle">Gry edukacyjne</p>
+        </header>
+
+        <!-- Game Selection -->
+        <div id="game-selection">
+            <div class="games-grid">
+                <div class="game-card" onclick="startGame('word-match')">
+                    <div class="game-icon">W</div>
+                    <h3>Word Match</h3>
+                    <p>Dopasuj slowa</p>
+                    <span class="game-xp">+15-50 XP</span>
+                </div>
+                <div class="game-card" onclick="startGame('sentence-builder')">
+                    <div class="game-icon">S</div>
+                    <h3>Sentence Builder</h3>
+                    <p>Uloz zdanie</p>
+                    <span class="game-xp">+15-50 XP</span>
+                </div>
+                <div class="game-card" onclick="startGame('error-hunt')">
+                    <div class="game-icon">E</div>
+                    <h3>Error Hunt</h3>
+                    <p>Znajdz blad</p>
+                    <span class="game-xp">+15-50 XP</span>
+                </div>
+                <div class="game-card" onclick="startGame('speed-translate')">
+                    <div class="game-icon">T</div>
+                    <h3>Speed Translate</h3>
+                    <p>Szybkie tlumaczenie</p>
+                    <span class="game-xp">+15-50 XP</span>
+                </div>
+            </div>
+
+            <div id="game-history" class="form-section" style="margin-top:1rem;">
+                <h3>Recent Scores / Ostatnie wyniki</h3>
+                <div id="history-content"><p>Loading...</p></div>
+            </div>
+        </div>
+
+        <!-- Game Area -->
+        <div id="game-area" class="hidden">
+            <div class="game-header">
+                <button onclick="exitGame()" class="btn btn-sm">&larr; Back / Wstecz</button>
+                <div class="game-timer" id="game-timer">0:00</div>
+                <div class="game-score-live" id="game-score-live">0 / 0</div>
+            </div>
+            <div id="game-content"></div>
+        </div>
+
+        <!-- Game Results -->
+        <div id="game-results" class="hidden">
+            <div class="recall-results">
+                <div class="recall-score">
+                    <span class="recall-score-label">Score / Wynik</span>
+                    <span class="recall-score-value" id="final-score">0%</span>
+                </div>
+                <div id="xp-earned-display" style="text-align:center;margin:1rem 0;">
+                    <span class="game-xp-earned">+0 XP</span>
+                </div>
+                <div id="game-feedback"></div>
+                <div class="result-actions" style="justify-content:center;">
+                    <button onclick="exitGame()" class="btn btn-secondary">Play Again / Graj ponownie</button>
+                    <a href="#" onclick="APP.goHomeByRole(); return false;" class="btn btn-primary">Dashboard</a>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <a href="dashboard.html">Dashboard</a> &middot;
+            <a href="leaderboard.html">Leaderboard</a>
+        </footer>
+    </div>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/celebrations.js"></script>
+    <script src="js/games.js"></script>
+    <script>AUTH.addAuthLinks();</script>
+</body>
+</html>

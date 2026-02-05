@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warm-Up Review / Rozgrzewka</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="site-nav" id="site-nav">
+            <a href="dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="#" id="nav-vocab">Vocabulary</a>
+                <a href="#" id="nav-conversation">Conversation</a>
+                <a href="#" class="active">Warm-Up</a>
+            </div>
+            <span class="nav-student" id="nav-student-name"></span>
+        </nav>
+
+        <div class="dashboard-header">
+            <div>
+                <h1>Warm-Up Review</h1>
+                <p class="subtitle">Rozgrzewka</p>
+            </div>
+            <a href="dashboard.html" class="btn btn-sm">&larr; Dashboard</a>
+        </div>
+
+        <div id="loading-screen">
+            <div class="loading">Checking your review status...</div>
+        </div>
+
+        <div id="no-review" class="hidden">
+            <div class="detail-panel" style="text-align:center;">
+                <h2>All caught up!</h2>
+                <p>Wszystko powtorzone! No review needed right now.</p>
+                <a id="no-review-link" href="dashboard.html" class="btn btn-primary" style="margin-top:1rem;">
+                    Back to Dashboard
+                </a>
+            </div>
+        </div>
+
+        <div id="quiz-area" class="hidden">
+            <div class="recall-progress">
+                <div class="recall-progress-bar">
+                    <div id="progress-fill" class="recall-progress-fill" style="width:0%"></div>
+                </div>
+                <span id="progress-text" class="recall-progress-text">Question 1 of ?</span>
+            </div>
+
+            <div id="encouragement-banner" class="detail-panel" style="text-align:center;margin-bottom:1rem;">
+                <p id="encouragement-text"></p>
+                <p id="encouragement-text-pl" class="polish-text"></p>
+            </div>
+
+            <div id="question-container"></div>
+
+            <div id="quiz-nav" style="display:flex;justify-content:space-between;margin-top:1rem;">
+                <button id="prev-btn" onclick="prevQuestion()" class="btn btn-sm" disabled>&larr; Previous</button>
+                <button id="next-btn" onclick="nextQuestion()" class="btn btn-sm btn-primary">Next &rarr;</button>
+                <button id="submit-btn" onclick="submitQuiz()" class="btn btn-sm btn-secondary hidden">Submit Answers</button>
+            </div>
+        </div>
+
+        <div id="results-area" class="hidden">
+            <div class="recall-results">
+                <div class="recall-score">
+                    <span class="recall-score-label">Your Score / Twoj wynik</span>
+                    <span id="result-score" class="recall-score-value">0%</span>
+                </div>
+
+                <div id="result-encouragement" class="detail-panel" style="text-align:center;margin:1rem 0;">
+                </div>
+
+                <h3 style="margin:1rem 0 0.5rem;">Question Feedback / Odpowiedzi</h3>
+                <div id="result-feedback"></div>
+
+                <div id="result-weak-areas" class="hidden" style="margin-top:1rem;">
+                    <h3>Areas to Review / Do powtorzenia</h3>
+                    <ul id="weak-areas-list"></ul>
+                </div>
+
+                <div style="text-align:center;margin-top:1.5rem;">
+                    <a id="start-lesson-btn" href="#" class="btn btn-primary">
+                        Start Lesson / Rozpocznij lekcje
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <a href="dashboard.html">Dashboard / Panel</a>
+        </footer>
+    </div>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/celebrations.js"></script>
+    <script src="js/recall.js"></script>
+    <script>AUTH.addAuthLinks(); AUTH.updateNav();</script>
+</body>
+</html>

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Profil</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="site-nav">
+            <a href="dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="games.html">Games</a>
+                <a href="leaderboard.html">Leaderboard</a>
+                <a href="profile.html" class="active">Profile</a>
+            </div>
+        </nav>
+
+        <header>
+            <h1>My Profile</h1>
+            <p class="subtitle">Moj profil</p>
+        </header>
+
+        <div id="profile-loading" class="loading">Loading profile...</div>
+
+        <div id="profile-main" class="hidden">
+            <!-- XP Header -->
+            <div class="xp-header-card">
+                <div class="xp-avatar" id="profile-avatar">S</div>
+                <div class="xp-info">
+                    <h2 id="profile-name">Student</h2>
+                    <div class="xp-title" id="profile-title">Beginner</div>
+                    <div class="xp-level-badge">Level <span id="profile-level">1</span></div>
+                </div>
+                <div class="xp-stats">
+                    <div class="xp-total"><span id="profile-xp">0</span> XP</div>
+                    <div class="xp-streak-display">
+                        <span id="profile-streak">0</span> day streak
+                    </div>
+                </div>
+            </div>
+
+            <!-- XP Progress Bar -->
+            <div class="form-section">
+                <h3>Level Progress / Postep poziomu</h3>
+                <div class="xp-progress-container">
+                    <div class="xp-progress-bar" id="xp-progress-bar" style="width:0%"></div>
+                </div>
+                <div class="xp-progress-text">
+                    <span id="xp-current">0</span> / <span id="xp-next">100</span> XP to Level <span id="xp-next-level">2</span>
+                </div>
+            </div>
+
+            <!-- Weekly Summary -->
+            <div class="form-section" id="weekly-summary">
+                <h3>This Week / Ten tydzien</h3>
+                <div class="weekly-stats-grid" id="weekly-grid"></div>
+                <div id="weekly-encouragement" class="encouragement-box"></div>
+            </div>
+
+            <!-- Daily Challenges -->
+            <div class="form-section">
+                <h3>Daily Challenges / Codzienne wyzwania</h3>
+                <div id="challenges-content"><div class="loading">Loading challenges...</div></div>
+            </div>
+
+            <!-- Achievements -->
+            <div class="form-section">
+                <h3>Achievements / Osiagniecia</h3>
+                <div class="achievement-filter">
+                    <button class="btn btn-sm active" onclick="filterAch('all')">All</button>
+                    <button class="btn btn-sm" onclick="filterAch('progress')">Progress</button>
+                    <button class="btn btn-sm" onclick="filterAch('mastery')">Mastery</button>
+                    <button class="btn btn-sm" onclick="filterAch('dedication')">Dedication</button>
+                    <button class="btn btn-sm" onclick="filterAch('vocabulary')">Vocabulary</button>
+                    <button class="btn btn-sm" onclick="filterAch('secret')">Secret</button>
+                </div>
+                <div class="achievements-grid" id="achievements-grid"></div>
+            </div>
+
+            <!-- Personalization -->
+            <div class="form-section">
+                <h3>Personalization / Personalizacja</h3>
+
+                <h4>Avatar</h4>
+                <div class="avatar-picker" id="avatar-picker"></div>
+
+                <h4 style="margin-top:1rem;">Theme / Motyw</h4>
+                <div class="theme-picker">
+                    <button class="theme-btn theme-light" onclick="setTheme('light')">Light</button>
+                    <button class="theme-btn theme-dark" onclick="setTheme('dark')">Dark</button>
+                    <button class="theme-btn theme-blue" onclick="setTheme('blue')">Blue</button>
+                </div>
+            </div>
+
+            <!-- XP History -->
+            <div class="form-section">
+                <h3>Recent XP / Ostatnie XP</h3>
+                <div id="xp-history"></div>
+            </div>
+        </div>
+
+        <footer>
+            <a href="dashboard.html">Dashboard</a> &middot;
+            <a href="games.html">Games / Gry</a>
+        </footer>
+    </div>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/celebrations.js"></script>
+    <script>
+        const studentId = STATE.requireStudentId();
+        if (!studentId) { /* redirect triggered */ }
+        let profileData = null;
+
+        async function loadProfile() {
+            try {
+                const resp = await apiFetch(`/api/gamification/${studentId}/profile`);
+                profileData = await resp.json();
+                renderProfile(profileData);
+                document.getElementById('profile-loading').classList.add('hidden');
+                document.getElementById('profile-main').classList.remove('hidden');
+
+                loadChallenges();
+                loadWeeklySummary();
+            } catch (err) {
+                document.getElementById('profile-loading').textContent = 'Error loading profile: ' + err.message;
+            }
+        }
+
+        function renderProfile(p) {
+            document.getElementById('profile-name').textContent = p.name;
+            document.getElementById('profile-title').textContent = `${p.title_pl} (${p.title})`;
+            document.getElementById('profile-level').textContent = p.level;
+            document.getElementById('profile-xp').textContent = p.total_xp;
+            document.getElementById('profile-streak').textContent = p.streak;
+            document.getElementById('profile-avatar').textContent = getAvatarEmoji(p.avatar_id);
+
+            // Progress bar
+            if (p.progress) {
+                const pct = Math.round(p.progress.progress * 100);
+                document.getElementById('xp-progress-bar').style.width = pct + '%';
+                document.getElementById('xp-current').textContent = p.total_xp;
+                document.getElementById('xp-next').textContent = p.progress.next_level_xp;
+                document.getElementById('xp-next-level').textContent = p.level + 1;
+            }
+
+            // Achievements
+            renderAchievements(p.achievements || [], 'all');
+
+            // Avatars
+            renderAvatarPicker(p);
+
+            // XP History
+            renderXpHistory(p.xp_history || []);
+        }
+
+        function renderAchievements(achievements, filter) {
+            const grid = document.getElementById('achievements-grid');
+            const filtered = filter === 'all' ? achievements : achievements.filter(a => a.category === filter);
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '<p style="color:#7f8c8d;">No achievements yet in this category.<br><em>Brak osiagniec w tej kategorii.</em></p>';
+                return;
+            }
+
+            grid.innerHTML = filtered.map(a => `
+                <div class="achievement-badge">
+                    <div class="achievement-icon">${getAchIcon(a.icon)}</div>
+                    <div class="achievement-title">${escapeHtml(a.title)}</div>
+                    <div class="achievement-desc">${escapeHtml(a.description)}</div>
+                    ${a.xp_reward ? `<div class="achievement-xp">+${a.xp_reward} XP</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function filterAch(category) {
+            document.querySelectorAll('.achievement-filter .btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            if (profileData) renderAchievements(profileData.achievements || [], category);
+        }
+
+        function renderAvatarPicker(p) {
+            const picker = document.getElementById('avatar-picker');
+            const all = [...(p.available_avatars || []), ...(p.locked_avatars || [])];
+
+            picker.innerHTML = all.map(a => {
+                const locked = a.unlocked_at > p.level;
+                const selected = a.id === p.avatar_id;
+                return `
+                    <div class="avatar-option ${selected ? 'selected' : ''} ${locked ? 'locked' : ''}"
+                         onclick="${locked ? '' : `selectAvatar('${a.id}')`}"
+                         title="${a.name_pl || a.name}${locked ? ' (Level '+a.unlocked_at+')' : ''}">
+                        <div class="avatar-circle avatar-${a.id}">${getAvatarEmoji(a.id)}</div>
+                        <div class="avatar-name">${a.name_pl || a.name}</div>
+                        ${locked ? `<div class="avatar-lock">Lv.${a.unlocked_at}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderXpHistory(history) {
+            const container = document.getElementById('xp-history');
+            if (history.length === 0) {
+                container.innerHTML = '<p style="color:#7f8c8d;">No XP earned yet.</p>';
+                return;
+            }
+            container.innerHTML = history.map(h => `
+                <div class="xp-entry">
+                    <span class="xp-amount ${h.amount > 0 ? 'positive' : ''}">+${h.amount} XP</span>
+                    <span class="xp-source">${escapeHtml(h.source)}</span>
+                    <span class="xp-detail">${escapeHtml(h.detail || '')}</span>
+                </div>
+            `).join('');
+        }
+
+        async function loadChallenges() {
+            try {
+                const resp = await apiFetch(`/api/challenges/${studentId}/today`);
+                const data = await resp.json();
+                renderChallenges(data);
+            } catch (err) {
+                document.getElementById('challenges-content').innerHTML = '<p>Error loading challenges.</p>';
+            }
+        }
+
+        function renderChallenges(data) {
+            const container = document.getElementById('challenges-content');
+            const challenges = data.challenges || [];
+
+            container.innerHTML = challenges.map(ch => `
+                <div class="challenge-card ${ch.completed ? 'completed' : ''}">
+                    <div class="challenge-info">
+                        <div class="challenge-title">${escapeHtml(ch.title)}</div>
+                        <div class="challenge-title-pl">${escapeHtml(ch.title_pl || '')}</div>
+                        <div class="challenge-desc">${escapeHtml(ch.description)}</div>
+                        <div class="challenge-progress-bar">
+                            <div class="challenge-fill" style="width:${Math.round(ch.progress/ch.target*100)}%"></div>
+                        </div>
+                        <div class="challenge-progress-text">${ch.progress} / ${ch.target}</div>
+                    </div>
+                    <div class="challenge-reward">
+                        <span class="challenge-xp">+${ch.reward_xp} XP</span>
+                        ${ch.completed && !ch.claimed ?
+                            `<button class="btn btn-sm btn-secondary" onclick="claimChallenge(${ch.id})">Claim!</button>` :
+                            ch.claimed ? '<span class="challenge-claimed">Claimed</span>' : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            if (data.bonus_available) {
+                container.innerHTML += `
+                    <div class="challenge-bonus">
+                        <span>All challenges complete! Claim bonus: <strong>+${data.bonus_xp} XP</strong></span>
+                        <button class="btn btn-sm btn-primary" onclick="claimBonus()">Claim Bonus!</button>
+                    </div>
+                `;
+            }
+        }
+
+        async function claimChallenge(challengeId) {
+            try {
+                const resp = await apiFetch(`/api/challenges/${challengeId}/claim`, {method:'POST'});
+                const data = await resp.json();
+                if (data.xp_result) {
+                    CELEBRATIONS.showXpGain(data.xp_result.xp_gained);
+                    if (data.xp_result.leveled_up) CELEBRATIONS.showLevelUp(data.xp_result.level);
+                }
+                loadChallenges();
+                loadProfile();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function claimBonus() {
+            try {
+                const resp = await apiFetch(`/api/challenges/${studentId}/claim-bonus`, {method:'POST'});
+                const data = await resp.json();
+                if (data.xp_result) {
+                    CELEBRATIONS.showXpGain(data.xp_result.xp_gained);
+                    CELEBRATIONS.triggerConfetti();
+                }
+                loadChallenges();
+                loadProfile();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function loadWeeklySummary() {
+            try {
+                const resp = await apiFetch(`/api/gamification/${studentId}/weekly-summary`);
+                const data = await resp.json();
+                renderWeeklySummary(data);
+            } catch (err) {}
+        }
+
+        function renderWeeklySummary(data) {
+            document.getElementById('weekly-grid').innerHTML = `
+                <div class="weekly-stat"><span class="stat-value">${data.weekly_xp}</span><span class="stat-label">XP earned</span></div>
+                <div class="weekly-stat"><span class="stat-value">${data.lessons_completed}</span><span class="stat-label">Lessons</span></div>
+                <div class="weekly-stat"><span class="stat-value">${data.vocab_reviewed}</span><span class="stat-label">Vocab</span></div>
+                <div class="weekly-stat"><span class="stat-value">${data.games_played}</span><span class="stat-label">Games</span></div>
+                <div class="weekly-stat"><span class="stat-value">${data.current_streak}</span><span class="stat-label">Streak</span></div>
+            `;
+
+            const enc = data.encouragements || [];
+            if (enc.length) {
+                document.getElementById('weekly-encouragement').innerHTML =
+                    enc.map(e => `<p>${escapeHtml(e)}</p>`).join('');
+            }
+        }
+
+        async function selectAvatar(avatarId) {
+            try {
+                await apiFetch(`/api/gamification/${studentId}/profile`, {
+                    method: 'PUT',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({avatar_id: avatarId})
+                });
+                loadProfile();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function setTheme(theme) {
+            try {
+                await apiFetch(`/api/gamification/${studentId}/profile`, {
+                    method: 'PUT',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({theme_preference: theme})
+                });
+                document.body.className = 'theme-' + theme;
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        function getAvatarEmoji(id) {
+            const map = {default:'S',fox:'F',owl:'O',eagle:'E',wolf:'W',bear:'B',dragon:'D',phoenix:'P',unicorn:'U',lion:'L',star:'*'};
+            return map[id] || 'S';
+        }
+
+        function getAchIcon(icon) {
+            const map = {foot:'F',rocket:'R',book:'B',trophy:'T',star:'*',target:'X',sparkle:'+',brain:'BR',medal:'M',crown:'C',fire:'!',flame:'!!',lightning:'Z',diamond:'D',up:'^',gem:'G',cards:'Ca',scroll:'Sc',castle:'Cs',lock:'Lo',moon:'Mo',sun:'Su',controller:'Co',refresh:'Re'};
+            return map[icon] || '?';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        loadProfile();
+        AUTH.addAuthLinks();
+    </script>
+</body>
+</html>
