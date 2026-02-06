@@ -209,6 +209,36 @@ async def update_teacher_availability(body: WeeklySchedule, request: Request):
     return await set_teacher_availability(body, request)
 
 
+@router.delete("/api/teacher/availability/windows/{window_id}")
+async def delete_availability_window(window_id: int, request: Request):
+    """
+    Delete a specific weekly availability window by ID.
+
+    Use GET /api/teacher/availability to see window IDs.
+    """
+    user = await _require_teacher(request)
+
+    db = await get_db()
+    try:
+        # Verify the window belongs to this teacher
+        cur = await db.execute(
+            "SELECT id FROM teacher_weekly_windows WHERE id = ? AND teacher_id = ?",
+            (window_id, user["id"]),
+        )
+        if not await cur.fetchone():
+            raise HTTPException(status_code=404, detail="Window not found")
+
+        await db.execute(
+            "DELETE FROM teacher_weekly_windows WHERE id = ? AND teacher_id = ?",
+            (window_id, user["id"]),
+        )
+        await db.commit()
+
+        return {"message": "Window deleted", "window_id": window_id}
+    finally:
+        await db.close()
+
+
 @router.post("/api/teacher/availability/overrides")
 async def add_or_update_override(body: DateOverride, request: Request):
     """

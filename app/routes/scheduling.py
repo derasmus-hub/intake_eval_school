@@ -294,8 +294,13 @@ async def teacher_confirm_session(session_id: int, request: Request):
         logger.error(f"Generation failed for session {session_id}: {e}")
         generation_result = {"lesson": {"status": "failed"}, "quiz": {"status": "failed"}}
 
-    # Return original contract (backward compatible)
-    return {"id": session_id, "status": "confirmed", "teacher_id": user["id"]}
+    # Return confirmation with generation status (backward compatible: existing fields preserved)
+    return {
+        "id": session_id,
+        "status": "confirmed",
+        "teacher_id": user["id"],
+        "generation": generation_result,
+    }
 
 
 @router.post("/api/teacher/sessions/{session_id}/cancel")
