@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Availability - Dostepnosc nauczyciela</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="site-nav">
+            <a href="student_dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="student_dashboard.html">Dashboard</a>
+                <a href="teacher-calendar.html" class="active">Teacher Availability</a>
+                <a href="assessment.html">Assessment</a>
+                <a href="games.html">Games</a>
+            </div>
+        </nav>
+
+        <div class="dashboard-header">
+            <div>
+                <h1>Teacher Availability</h1>
+                <p class="subtitle">Dostepnosc nauczyciela / View when teachers are available</p>
+            </div>
+            <a href="student_dashboard.html" class="btn btn-sm">&larr; Back to Dashboard</a>
+        </div>
+
+        <!-- Teacher Selection -->
+        <div class="form-section" id="teacher-select-section">
+            <h2>Select Teacher / Wybierz nauczyciela</h2>
+            <div class="form-group">
+                <select id="teacher-select" onchange="onTeacherChange()">
+                    <option value="">Loading teachers... / Ladowanie...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Calendar Section -->
+        <div class="form-section" id="calendar-section">
+            <div class="calendar-header">
+                <button class="btn btn-sm" onclick="prevMonth()" id="prev-month-btn">&larr; Prev</button>
+                <h2 id="calendar-month-title">February 2026</h2>
+                <button class="btn btn-sm" onclick="nextMonth()" id="next-month-btn">Next &rarr;</button>
+            </div>
+
+            <div class="calendar-legend">
+                <span class="legend-item"><span class="legend-dot legend-available"></span> Available / Dostepny</span>
+                <span class="legend-item"><span class="legend-dot legend-unavailable"></span> Unavailable / Niedostepny</span>
+                <span class="legend-item"><span class="legend-dot legend-no-hours"></span> No hours set / Brak godzin</span>
+            </div>
+
+            <div id="calendar-grid" class="calendar-grid">
+                <!-- Calendar will be rendered by JS -->
+            </div>
+
+            <div id="calendar-loading" class="calendar-loading hidden">
+                <div class="loading">Loading availability... / Ladowanie dostepnosci...</div>
+            </div>
+
+            <div id="calendar-error" class="calendar-error hidden">
+                <p>Could not load availability. Please try again.</p>
+            </div>
+        </div>
+
+        <!-- Selected Day Details -->
+        <div class="form-section" id="day-details-section">
+            <h2 id="day-details-title">Select a Day / Wybierz dzien</h2>
+            <div id="day-details-content">
+                <p class="meta">Click on a day in the calendar above to see available time slots.</p>
+                <p class="meta"><em>Kliknij dzien w kalendarzu powyzej, aby zobaczyc dostepne godziny.</em></p>
+            </div>
+        </div>
+
+        <!-- Quick Book CTA -->
+        <div class="form-section" id="book-cta-section" style="display:none;">
+            <div class="book-cta">
+                <div class="book-cta-text">
+                    <strong>Found a good time? / Znalazles dobry termin?</strong>
+                    <p>Go back to your dashboard to request a session at this time.</p>
+                </div>
+                <a href="student_dashboard.html" class="btn btn-primary">Request Session / Popros o sesje</a>
+            </div>
+        </div>
+
+        <footer>
+            <a href="student_dashboard.html">Dashboard / Panel</a> &middot;
+            <a href="assessment.html">Assessment / Test</a> &middot;
+            <a href="games.html">Games / Gry</a>
+        </footer>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/teacher-calendar.js"></script>
+    <script>
+        // Role guard: only students allowed
+        APP.guardRole(['student'], 'dashboard.html');
+        AUTH.addAuthLinks && AUTH.addAuthLinks();
+        AUTH.updateNav && AUTH.updateNav();
+    </script>
+</body>
+</html>

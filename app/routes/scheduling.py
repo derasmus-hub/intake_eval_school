@@ -1,9 +1,17 @@
 """Scheduling endpoints: session requests, teacher confirm/cancel, availability."""
 
+import logging
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from app.db.database import get_db
 from app.routes.auth import get_current_user
+from app.services.session_automation import (
+    on_session_confirmed,
+    get_session_lesson,
+    get_session_quiz,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["scheduling"])
 
@@ -258,7 +266,7 @@ async def teacher_sessions(request: Request, status: str | None = None):
 
 @router.post("/api/teacher/sessions/{session_id}/confirm")
 async def teacher_confirm_session(session_id: int, request: Request):
-    """Teacher confirms a requested session."""
+    """Teacher confirms a requested session. Triggers lesson and quiz generation."""
     user = await _require_teacher(request)
     db = await get_db()
     try:
@@ -279,9 +287,21 @@ async def teacher_confirm_session(session_id: int, request: Request):
             (user["id"], session_id),
         )
         await db.commit()
-        return {"id": session_id, "status": "confirmed", "teacher_id": user["id"]}
     finally:
         await db.close()
+
+    # Trigger lesson and quiz generation (fail-soft, does not block confirmation)
+    generation_result = None
+    try:
+        generation_result = await on_session_confirmed(session_id, user["id"])
+        logger.info(f"Session {session_id} confirmed. Generation: {generation_result}")
+    except Exception as e:
+        # Log but don't fail the confirmation
+        logger.error(f"Generation failed for session {session_id}: {e}")
+        generation_result = {"lesson": {"status": "failed"}, "quiz": {"status": "failed"}}
+
+    # Return original contract (backward compatible)
+    return {"id": session_id, "status": "confirmed", "teacher_id": user["id"]}
 
 
 @router.post("/api/teacher/sessions/{session_id}/cancel")
@@ -673,3 +693,152 @@ async def teacher_student_overview(student_id: int, request: Request):
         }
     finally:
         await db.close()
+
+
+# ── Session Lesson/Quiz Endpoints ──────────────────────────────────
+
+
+@router.get("/api/teacher/sessions/{session_id}/lesson")
+async def teacher_get_session_lesson(session_id: int, request: Request):
+    """Teacher retrieves the generated lesson for a session."""
+    user = await _require_teacher(request)
+
+    # Verify session exists and teacher has access
+    db = await get_db()
+    try:
+        cur = await db.execute(
+            "SELECT id, teacher_id, status FROM sessions WHERE id = ?",
+            (session_id,)
+        )
+        session = await cur.fetchone()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+    finally:
+        await db.close()
+
+    lesson = await get_session_lesson(session_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="No lesson generated for this session")
+
+    return {
+        "session_id": session_id,
+        "artifact_id": lesson.get("id"),
+        "lesson": lesson.get("lesson_json"),
+        "topics": lesson.get("topics_json"),
+        "difficulty": lesson.get("difficulty"),
+        "created_at": lesson.get("created_at"),
+    }
+
+
+@router.get("/api/teacher/sessions/{session_id}/next-quiz")
+async def teacher_get_session_quiz(session_id: int, request: Request):
+    """Teacher retrieves the generated quiz for a session."""
+    user = await _require_teacher(request)
+
+    # Verify session exists
+    db = await get_db()
+    try:
+        cur = await db.execute(
+            "SELECT id, teacher_id, status FROM sessions WHERE id = ?",
+            (session_id,)
+        )
+        session = await cur.fetchone()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+    finally:
+        await db.close()
+
+    quiz = await get_session_quiz(session_id)
+    if not quiz:
+        raise HTTPException(status_code=404, detail="No quiz generated for this session")
+
+    return {
+        "session_id": session_id,
+        "quiz_id": quiz.get("id"),
+        "quiz": quiz.get("quiz_json"),
+        "derived_from_artifact_id": quiz.get("derived_from_lesson_artifact_id"),
+        "created_at": quiz.get("created_at"),
+    }
+
+
+@router.get("/api/student/sessions/{session_id}/lesson")
+async def student_get_session_lesson(session_id: int, request: Request):
+    """Student retrieves the lesson for their confirmed session.
+
+    Note: Lesson is available once the session is confirmed.
+    """
+    user = await _require_student(request)
+    student_id = user["id"]
+
+    # Verify session exists and belongs to this student
+    db = await get_db()
+    try:
+        cur = await db.execute(
+            "SELECT id, student_id, status, scheduled_at FROM sessions WHERE id = ?",
+            (session_id,)
+        )
+        session = await cur.fetchone()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if session["student_id"] != student_id:
+            raise HTTPException(status_code=403, detail="Not your session")
+        if session["status"] not in ("confirmed", "completed"):
+            raise HTTPException(
+                status_code=403,
+                detail="Lesson not available until session is confirmed"
+            )
+    finally:
+        await db.close()
+
+    lesson = await get_session_lesson(session_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="No lesson available for this session")
+
+    # Return lesson content (student view - same as teacher for now)
+    return {
+        "session_id": session_id,
+        "lesson": lesson.get("lesson_json"),
+        "difficulty": lesson.get("difficulty"),
+        "scheduled_at": lesson.get("scheduled_at"),
+    }
+
+
+@router.get("/api/student/sessions/{session_id}/quiz")
+async def student_get_session_quiz(session_id: int, request: Request):
+    """Student retrieves the pre-class quiz for their session.
+
+    This quiz should be taken before class as a warm-up review.
+    """
+    user = await _require_student(request)
+    student_id = user["id"]
+
+    # Verify session exists and belongs to this student
+    db = await get_db()
+    try:
+        cur = await db.execute(
+            "SELECT id, student_id, status, scheduled_at FROM sessions WHERE id = ?",
+            (session_id,)
+        )
+        session = await cur.fetchone()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        if session["student_id"] != student_id:
+            raise HTTPException(status_code=403, detail="Not your session")
+        if session["status"] not in ("confirmed", "completed"):
+            raise HTTPException(
+                status_code=403,
+                detail="Quiz not available until session is confirmed"
+            )
+    finally:
+        await db.close()
+
+    quiz = await get_session_quiz(session_id)
+    if not quiz:
+        raise HTTPException(status_code=404, detail="No quiz available for this session")
+
+    return {
+        "session_id": session_id,
+        "quiz_id": quiz.get("id"),
+        "quiz": quiz.get("quiz_json"),
+        "scheduled_at": quiz.get("scheduled_at"),
+    }

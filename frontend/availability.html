@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Availability - IntakeEval</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <nav class="site-nav">
+            <a href="dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="availability.html" class="active">Availability</a>
+            </div>
+        </nav>
+
+        <div class="dashboard-header">
+            <div>
+                <h1>Manage Availability</h1>
+                <p class="subtitle">Ustaw swoja dostepnosc / Set your schedule</p>
+            </div>
+            <a href="dashboard.html" class="btn btn-sm">&larr; Back to Dashboard</a>
+        </div>
+
+        <!-- Weekly Schedule Section -->
+        <div class="form-section" id="weekly-section">
+            <h2>Weekly Schedule / Tygodniowy harmonogram</h2>
+            <p class="section-desc">Set your regular available hours for each day of the week.</p>
+
+            <div id="weekly-schedule">
+                <!-- Days will be rendered by JS -->
+            </div>
+
+            <div class="form-actions" style="margin-top:1rem;">
+                <button id="save-weekly-btn" class="btn btn-primary" onclick="saveWeeklySchedule()">
+                    Save Weekly Schedule / Zapisz harmonogram
+                </button>
+            </div>
+            <div id="weekly-status" class="status-message"></div>
+        </div>
+
+        <!-- Date Overrides Section -->
+        <div class="form-section" id="overrides-section">
+            <h2>Date Overrides / Wyjatki od harmonogramu</h2>
+            <p class="section-desc">Mark specific dates as unavailable (holidays, sick days, etc.).</p>
+
+            <div class="override-form">
+                <div class="form-row">
+                    <div class="form-group" style="flex:1;">
+                        <label for="override-date">Date / Data:</label>
+                        <input type="date" id="override-date" min="">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label for="override-reason">Reason (optional) / Powod:</label>
+                        <input type="text" id="override-reason" placeholder="e.g., Holiday, Sick day...">
+                    </div>
+                    <div class="form-group" style="align-self:flex-end;">
+                        <button class="btn btn-secondary" onclick="addOverride()">
+                            Mark Unavailable / Oznacz jako niedostepny
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="override-status" class="status-message"></div>
+
+            <div id="overrides-list" style="margin-top:1rem;">
+                <!-- Overrides will be rendered by JS -->
+            </div>
+        </div>
+
+        <!-- Preview Section -->
+        <div class="form-section" id="preview-section">
+            <h2>Preview / Podglad</h2>
+            <p class="section-desc">See how your availability looks for the next 2 weeks.</p>
+            <div id="availability-preview" class="availability-preview">
+                <!-- Preview grid rendered by JS -->
+            </div>
+        </div>
+
+        <footer>
+            <a href="dashboard.html">Back to Dashboard / Powrot do panelu</a>
+        </footer>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/availability.js"></script>
+    <script>
+        // Role guard: only teachers allowed
+        APP.guardRole(['teacher'], 'student_dashboard.html');
+        AUTH.addAuthLinks(); AUTH.updateNav();
+    </script>
+</body>
+</html>

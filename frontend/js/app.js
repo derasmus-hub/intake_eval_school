@@ -72,12 +72,15 @@
      *   APP.guardRole(['student'], 'dashboard.html');
      *
      * @param {string[]} allowedRoles - Roles allowed on this page
-     * @param {string}   redirectPage - Where to send unauthorized users
+     * @param {string}   redirectPage - Where to send unauthorized users (wrong role)
      */
     function guardRole(allowedRoles, redirectPage) {
         var role = getUserRole();
-        // If not logged in, don't guard (let the page handle auth separately)
-        if (!role) return;
+        // If not logged in, redirect to login
+        if (!role) {
+            window.location.href = 'login.html';
+            return;
+        }
         if (allowedRoles.indexOf(role) === -1) {
             window.location.href = redirectPage || 'login.html';
         }

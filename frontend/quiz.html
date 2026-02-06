@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pre-Class Quiz - Quiz przed lekcją</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .quiz-container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .quiz-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .quiz-header h1 {
+            margin-bottom: 0.5rem;
+        }
+        .quiz-meta {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .quiz-progress {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .quiz-progress-bar {
+            flex: 1;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .quiz-progress-fill {
+            height: 100%;
+            background: #3498db;
+            transition: width 0.3s ease;
+        }
+        .quiz-progress-text {
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .question-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .question-card.answered {
+            border-color: #3498db;
+        }
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        .question-number {
+            background: #3498db;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .question-type {
+            font-size: 0.8rem;
+            color: #888;
+            text-transform: uppercase;
+        }
+        .question-text {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            line-height: 1.5;
+        }
+        .question-hint {
+            font-size: 0.9rem;
+            color: #666;
+            font-style: italic;
+            margin-bottom: 1rem;
+        }
+        .options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .option-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: #f8f9fa;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .option-item:hover {
+            background: #e8f4fc;
+            border-color: #3498db;
+        }
+        .option-item.selected {
+            background: #e8f4fc;
+            border-color: #3498db;
+        }
+        .option-item input {
+            margin-right: 0.75rem;
+        }
+        .text-answer {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        .text-answer:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .quiz-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e0e0e0;
+        }
+        .quiz-submit-btn {
+            padding: 0.75rem 2rem;
+            font-size: 1.1rem;
+        }
+        /* Results styles */
+        .results-summary {
+            text-align: center;
+            padding: 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            color: white;
+            margin-bottom: 2rem;
+        }
+        .results-score {
+            font-size: 4rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .results-label {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        .results-detail {
+            margin-top: 1rem;
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+        .result-item {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        .result-item.correct {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+        .result-item.incorrect {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+        .result-question {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .result-answers {
+            font-size: 0.9rem;
+        }
+        .result-answers .your-answer {
+            color: #666;
+        }
+        .result-answers .correct-answer {
+            color: #28a745;
+            font-weight: 600;
+        }
+        .result-explanation {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #666;
+            font-style: italic;
+        }
+        .weak-areas-card {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .weak-areas-card h3 {
+            color: #856404;
+            margin-bottom: 0.5rem;
+        }
+        .weak-areas-list {
+            list-style: disc;
+            padding-left: 1.5rem;
+            color: #856404;
+        }
+        .no-quiz-message {
+            text-align: center;
+            padding: 3rem;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+        .no-quiz-message h2 {
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="site-nav">
+            <a href="student_dashboard.html" class="nav-brand">IntakeEval</a>
+            <div class="nav-links">
+                <a href="student_dashboard.html">Dashboard</a>
+                <a href="assessment.html">Assessment</a>
+                <a href="games.html">Games</a>
+            </div>
+        </nav>
+
+        <!-- Loading -->
+        <div id="loading-screen">
+            <div class="loading">Loading quiz... / Ładowanie quizu...</div>
+        </div>
+
+        <!-- No Quiz Available -->
+        <div id="no-quiz-screen" class="hidden">
+            <div class="no-quiz-message">
+                <h2>No Quiz Available</h2>
+                <p>Brak dostępnego quizu</p>
+                <p class="meta" style="margin-top:1rem;">
+                    You don't have any pending quizzes. Quizzes are generated when your teacher confirms a session.
+                    <br><em>Nie masz żadnych oczekujących quizów. Quizy są generowane po potwierdzeniu sesji przez nauczyciela.</em>
+                </p>
+                <a href="student_dashboard.html" class="btn btn-primary" style="margin-top:1.5rem;">
+                    Back to Dashboard / Powrót do panelu
+                </a>
+            </div>
+        </div>
+
+        <!-- Quiz Content -->
+        <div id="quiz-content" class="hidden quiz-container">
+            <div class="quiz-header">
+                <h1 id="quiz-title">Pre-Class Quiz</h1>
+                <p class="quiz-meta" id="quiz-description"></p>
+                <p class="quiz-meta"><em id="quiz-time-estimate"></em></p>
+            </div>
+
+            <div class="quiz-progress">
+                <div class="quiz-progress-bar">
+                    <div class="quiz-progress-fill" id="progress-fill" style="width: 0%"></div>
+                </div>
+                <span class="quiz-progress-text" id="progress-text">0 / 0</span>
+            </div>
+
+            <form id="quiz-form">
+                <div id="questions-container"></div>
+
+                <div class="quiz-actions">
+                    <span class="meta" id="unanswered-warning"></span>
+                    <button type="submit" class="btn btn-primary quiz-submit-btn" id="submit-btn">
+                        Submit Quiz / Wyślij quiz
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="results-screen" class="hidden quiz-container">
+            <div class="results-summary">
+                <div class="results-score" id="results-score">--</div>
+                <div class="results-label">Your Score / Twój wynik</div>
+                <div class="results-detail" id="results-detail"></div>
+            </div>
+
+            <div id="weak-areas-container" class="hidden">
+                <div class="weak-areas-card">
+                    <h3>Areas to Review / Obszary do powtórki</h3>
+                    <ul class="weak-areas-list" id="weak-areas-list"></ul>
+                </div>
+            </div>
+
+            <h2>Your Answers / Twoje odpowiedzi</h2>
+            <div id="results-items"></div>
+
+            <div style="text-align: center; margin-top: 2rem;">
+                <a href="student_dashboard.html" class="btn btn-primary">
+                    Back to Dashboard / Powrót do panelu
+                </a>
+            </div>
+        </div>
+
+        <footer>
+            <a href="student_dashboard.html">Dashboard / Panel</a> &middot;
+            <a href="assessment.html">Assessment / Test</a>
+        </footer>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        // Role guard: only students allowed
+        APP.guardRole(['student'], 'dashboard.html');
+
+        // State
+        let quizId = null;
+        let questions = [];
+        let answers = {};
+
+        // Get quiz_id from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        quizId = urlParams.get('quiz_id') ? parseInt(urlParams.get('quiz_id'), 10) : null;
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        function updateProgress() {
+            const answered = Object.keys(answers).filter(k => answers[k] && answers[k].trim()).length;
+            const total = questions.length;
+            const pct = total > 0 ? Math.round((answered / total) * 100) : 0;
+
+            document.getElementById('progress-fill').style.width = pct + '%';
+            document.getElementById('progress-text').textContent = answered + ' / ' + total;
+
+            const unanswered = total - answered;
+            const warningEl = document.getElementById('unanswered-warning');
+            if (unanswered > 0) {
+                warningEl.textContent = unanswered + ' question' + (unanswered > 1 ? 's' : '') + ' unanswered';
+            } else {
+                warningEl.textContent = 'All questions answered!';
+            }
+        }
+
+        function renderQuestion(q, index) {
+            const qId = q.id;
+            const qType = q.type || 'text';
+            const qText = q.text || '';
+            const qTextPl = q.text_pl || '';
+            const options = q.options || [];
+
+            let inputHtml = '';
+
+            if (qType === 'multiple_choice' && options.length > 0) {
+                inputHtml = '<div class="options-list">' +
+                    options.map((opt, i) => {
+                        const optId = qId + '_opt_' + i;
+                        return '<label class="option-item" for="' + optId + '">' +
+                            '<input type="radio" name="' + qId + '" id="' + optId + '" value="' + escapeHtml(opt) + '" onchange="selectAnswer(\'' + qId + '\', this.value)">' +
+                            '<span>' + escapeHtml(opt) + '</span>' +
+                            '</label>';
+                    }).join('') +
+                    '</div>';
+            } else if (qType === 'true_false') {
+                inputHtml = '<div class="options-list">' +
+                    '<label class="option-item" for="' + qId + '_true">' +
+                    '<input type="radio" name="' + qId + '" id="' + qId + '_true" value="true" onchange="selectAnswer(\'' + qId + '\', \'true\')">' +
+                    '<span>True / Prawda</span>' +
+                    '</label>' +
+                    '<label class="option-item" for="' + qId + '_false">' +
+                    '<input type="radio" name="' + qId + '" id="' + qId + '_false" value="false" onchange="selectAnswer(\'' + qId + '\', \'false\')">' +
+                    '<span>False / Fałsz</span>' +
+                    '</label>' +
+                    '</div>';
+            } else {
+                // Text input for fill_blank, translate, reorder
+                inputHtml = '<input type="text" class="text-answer" id="input_' + qId + '" ' +
+                    'placeholder="Type your answer here / Wpisz odpowiedź" ' +
+                    'oninput="selectAnswer(\'' + qId + '\', this.value)">';
+            }
+
+            const typeLabels = {
+                'multiple_choice': 'Multiple Choice',
+                'fill_blank': 'Fill in the Blank',
+                'translate': 'Translation',
+                'true_false': 'True or False',
+                'reorder': 'Word Order'
+            };
+
+            return '<div class="question-card" id="card_' + qId + '">' +
+                '<div class="question-header">' +
+                '<span class="question-number">Q' + (index + 1) + '</span>' +
+                '<span class="question-type">' + (typeLabels[qType] || qType) + '</span>' +
+                '</div>' +
+                '<div class="question-text">' + escapeHtml(qText) + '</div>' +
+                (qTextPl ? '<div class="question-hint">' + escapeHtml(qTextPl) + '</div>' : '') +
+                inputHtml +
+                '</div>';
+        }
+
+        function selectAnswer(questionId, value) {
+            answers[questionId] = value;
+            updateProgress();
+
+            // Mark card as answered
+            const card = document.getElementById('card_' + questionId);
+            if (card) {
+                if (value && value.trim()) {
+                    card.classList.add('answered');
+                } else {
+                    card.classList.remove('answered');
+                }
+            }
+
+            // Update selected state for options
+            const options = document.querySelectorAll('#card_' + questionId + ' .option-item');
+            options.forEach(opt => {
+                const input = opt.querySelector('input');
+                if (input && input.checked) {
+                    opt.classList.add('selected');
+                } else {
+                    opt.classList.remove('selected');
+                }
+            });
+        }
+
+        async function loadQuiz() {
+            // If no quiz_id, try to get pending quizzes
+            if (!quizId) {
+                try {
+                    const resp = await apiFetch('/api/student/quizzes/pending');
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data.quizzes && data.quizzes.length > 0) {
+                            // Redirect to first pending quiz
+                            quizId = data.quizzes[0].id;
+                            window.location.href = 'quiz.html?quiz_id=' + quizId;
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error fetching pending quizzes:', e);
+                }
+
+                // No pending quizzes
+                document.getElementById('loading-screen').classList.add('hidden');
+                document.getElementById('no-quiz-screen').classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const resp = await apiFetch('/api/student/quizzes/' + quizId);
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Failed to load quiz');
+                }
+
+                const data = await resp.json();
+
+                // Check if already attempted
+                if (data.already_attempted) {
+                    // Show results instead
+                    await loadResults();
+                    return;
+                }
+
+                // Set up quiz
+                document.getElementById('quiz-title').textContent = data.title || 'Pre-Class Quiz';
+                if (data.title_pl) {
+                    document.getElementById('quiz-title').textContent += ' / ' + data.title_pl;
+                }
+                document.getElementById('quiz-description').textContent = data.description || '';
+                document.getElementById('quiz-time-estimate').textContent =
+                    'Estimated time: ' + (data.estimated_time_minutes || 5) + ' minutes / Szacowany czas: ' + (data.estimated_time_minutes || 5) + ' minut';
+
+                questions = data.questions || [];
+
+                // Render questions
+                const container = document.getElementById('questions-container');
+                container.innerHTML = questions.map((q, i) => renderQuestion(q, i)).join('');
+
+                updateProgress();
+
+                document.getElementById('loading-screen').classList.add('hidden');
+                document.getElementById('quiz-content').classList.remove('hidden');
+
+            } catch (err) {
+                console.error('Error loading quiz:', err);
+                document.getElementById('loading-screen').innerHTML =
+                    '<p>Error: ' + escapeHtml(err.message) + '</p>' +
+                    '<a href="student_dashboard.html" class="btn btn-secondary">Back to Dashboard</a>';
+            }
+        }
+
+        async function loadResults() {
+            try {
+                const resp = await apiFetch('/api/student/quizzes/' + quizId + '/results');
+                if (!resp.ok) {
+                    throw new Error('Could not load results');
+                }
+
+                const data = await resp.json();
+                showResults(data);
+
+            } catch (err) {
+                console.error('Error loading results:', err);
+                document.getElementById('loading-screen').innerHTML =
+                    '<p>Error loading results. <a href="student_dashboard.html">Back to Dashboard</a></p>';
+            }
+        }
+
+        function showResults(data) {
+            document.getElementById('loading-screen').classList.add('hidden');
+            document.getElementById('quiz-content').classList.add('hidden');
+            document.getElementById('results-screen').classList.remove('hidden');
+
+            // Score
+            document.getElementById('results-score').textContent = data.score + '%';
+            document.getElementById('results-detail').textContent =
+                data.correct_count + ' / ' + data.total_questions + ' correct / poprawnych';
+
+            // Weak areas
+            const weakAreas = data.weak_areas || [];
+            if (weakAreas.length > 0) {
+                document.getElementById('weak-areas-container').classList.remove('hidden');
+                document.getElementById('weak-areas-list').innerHTML = weakAreas.map(w =>
+                    '<li>' + escapeHtml(w.skill.replace(/_/g, ' ')) +
+                    ' (' + w.accuracy + '% - ' + w.correct + '/' + w.total + ')</li>'
+                ).join('');
+            }
+
+            // Individual results
+            const items = data.items || [];
+            document.getElementById('results-items').innerHTML = items.map((item, i) => {
+                const isCorrect = item.is_correct;
+                return '<div class="result-item ' + (isCorrect ? 'correct' : 'incorrect') + '">' +
+                    '<div class="result-question">' +
+                    '<strong>Q' + (i + 1) + ':</strong> ' + escapeHtml(item.question_text) +
+                    '</div>' +
+                    '<div class="result-answers">' +
+                    '<span class="your-answer">Your answer: <strong>' + escapeHtml(item.student_answer || '(no answer)') + '</strong></span>' +
+                    (isCorrect ? ' ✓' : ' ✗') +
+                    (!isCorrect ? '<br><span class="correct-answer">Correct: ' + escapeHtml(item.expected_answer) + '</span>' : '') +
+                    '</div>' +
+                    (item.explanation ? '<div class="result-explanation">' + escapeHtml(item.explanation) + '</div>' : '') +
+                    '</div>';
+            }).join('');
+        }
+
+        async function submitQuiz(e) {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submit-btn');
+            const unanswered = questions.length - Object.keys(answers).filter(k => answers[k] && answers[k].trim()).length;
+
+            if (unanswered > 0) {
+                if (!confirm('You have ' + unanswered + ' unanswered question(s). Submit anyway?\n' +
+                             'Masz ' + unanswered + ' pytań bez odpowiedzi. Wyślić mimo to?')) {
+                    return;
+                }
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting... / Wysyłanie...';
+
+            try {
+                const resp = await apiFetch('/api/student/quizzes/' + quizId + '/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ answers: answers })
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.detail || 'Submission failed');
+                }
+
+                const data = await resp.json();
+                showResults(data);
+
+            } catch (err) {
+                console.error('Error submitting quiz:', err);
+                alert('Error: ' + err.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Quiz / Wyślij quiz';
+            }
+        }
+
+        // Expose for inline handlers
+        window.selectAnswer = selectAnswer;
+
+        // Event listeners
+        document.getElementById('quiz-form').addEventListener('submit', submitQuiz);
+
+        // Load quiz on page load
+        loadQuiz();
+    </script>
+</body>
+</html>

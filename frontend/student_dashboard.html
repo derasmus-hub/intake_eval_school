@@ -47,9 +47,12 @@
                     <p>Pick a time, send a request, and your teacher will confirm it.<br>
                        <em>Wybierz termin, wyslij prosbe, a nauczyciel ja potwierdzi.</em></p>
                 </div>
-                <button class="btn btn-primary" onclick="toggleScheduleForm()" type="button">
-                    Request / Poproś
-                </button>
+                <div class="sd-cta-buttons">
+                    <a href="teacher-calendar.html" class="btn btn-secondary btn-sm">View Availability</a>
+                    <button class="btn btn-primary" onclick="toggleScheduleForm()" type="button">
+                        Request / Poproś
+                    </button>
+                </div>
             </div>
 
             <!-- ── Schedule Form (hidden) ─────────────────────── -->
@@ -99,6 +102,12 @@
                         <em>Nauczyciel przejrzy prosbe i potwierdzi lub zaproponuje inny termin.</em>
                     </div>
                 </form>
+            </div>
+
+            <!-- ── Pending Quiz Alert ─────────────────────────── -->
+            <div id="pending-quiz-card" class="sd-next-card hidden" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                <div class="sd-next-label" style="color: rgba(255,255,255,0.9);">Pre-Class Quiz Ready! / Quiz przed lekcją!</div>
+                <div id="pending-quiz-info" class="sd-next-body" style="color: white;"></div>
             </div>
 
             <!-- ── Next Confirmed Session ─────────────────────── -->
@@ -614,9 +623,43 @@
             document.getElementById('sched-notes-count').textContent = this.value.length;
         });
 
+        // Load pending quizzes
+        async function loadPendingQuizzes() {
+            var quizCard = document.getElementById('pending-quiz-card');
+            var quizInfo = document.getElementById('pending-quiz-info');
+
+            try {
+                var resp = await apiFetch('/api/student/quizzes/pending');
+                if (!resp.ok) return;
+
+                var data = await resp.json();
+                var quizzes = data.quizzes || [];
+
+                if (quizzes.length > 0) {
+                    var quiz = quizzes[0]; // Show the first pending quiz
+                    quizInfo.innerHTML =
+                        '<div style="font-size:1.1rem;font-weight:600;margin-bottom:0.5rem;">' +
+                        escapeHtml(quiz.title) + (quiz.title_pl ? ' / ' + escapeHtml(quiz.title_pl) : '') +
+                        '</div>' +
+                        '<div style="font-size:0.9rem;opacity:0.9;margin-bottom:0.75rem;">' +
+                        quiz.question_count + ' questions &middot; ~' + quiz.estimated_time + ' min' +
+                        '</div>' +
+                        '<a href="quiz.html?quiz_id=' + quiz.id + '" class="btn" style="background:white;color:#667eea;font-weight:600;">' +
+                        'Start Quiz / Rozpocznij test' +
+                        '</a>';
+                    quizCard.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.warn('[student-dashboard] Could not load pending quizzes:', e);
+            }
+        }
+
         loadDashboard();
-        // Load sessions independently
-        if (studentId) loadSessions();
+        // Load sessions and quizzes independently
+        if (studentId) {
+            loadSessions();
+            loadPendingQuizzes();
+        }
     </script>
 </body>
 </html>

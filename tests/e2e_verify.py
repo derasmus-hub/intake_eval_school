@@ -439,26 +439,18 @@ def get_redirect(path, token=None):
         return e.code, location
 
 
-# Unauthenticated → login.html
+# Dashboard pages are now served as static files (role guards are client-side JS)
+# Server returns 200 for all dashboard requests - JS handles role-based redirects
 code, loc = get_redirect("/dashboard.html")
-check("Unauthenticated /dashboard.html → login (303)", code == 303 and "login" in loc, f"code={code} loc={loc}")
+check("GET /dashboard.html returns 200 (static)", code == 200, f"code={code}")
 
 code, loc = get_redirect("/student_dashboard.html")
-check("Unauthenticated /student_dashboard.html → login (303)", code == 303 and "login" in loc, f"code={code} loc={loc}")
+check("GET /student_dashboard.html returns 200 (static)", code == 200, f"code={code}")
 
-# Teacher accessing student_dashboard → dashboard.html
-code, loc = get_redirect("/student_dashboard.html", token=teacher_token)
-check("Teacher /student_dashboard.html → dashboard (303)", code == 303 and "dashboard.html" in loc and "student" not in loc, f"code={code} loc={loc}")
-
-# Teacher accessing dashboard.html → served (200)
+# With or without token, static files are served (client JS handles auth)
 code, loc = get_redirect("/dashboard.html", token=teacher_token)
 check("Teacher /dashboard.html → served (200)", code == 200, f"code={code}")
 
-# Student accessing dashboard.html → student_dashboard.html
-code, loc = get_redirect("/dashboard.html", token=student_token)
-check("Student /dashboard.html → student_dashboard (303)", code == 303 and "student_dashboard" in loc, f"code={code} loc={loc}")
-
-# Student accessing student_dashboard.html → served (200)
 code, loc = get_redirect("/student_dashboard.html", token=student_token)
 check("Student /student_dashboard.html → served (200)", code == 200, f"code={code}")
 

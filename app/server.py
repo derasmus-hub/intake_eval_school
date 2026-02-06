@@ -71,6 +71,9 @@ from app.routes.games import router as games_router
 from app.routes.gamification import router as gamification_router
 from app.routes.scheduling import router as scheduling_router
 from app.routes.admin import router as admin_router
+from app.routes.availability import router as availability_router
+from app.routes.quiz import router as quiz_router
+from app.routes.learning_plan import router as learning_plan_router
 
 app.include_router(auth_router)
 app.include_router(intake_router)
@@ -89,6 +92,9 @@ app.include_router(games_router)
 app.include_router(gamification_router)
 app.include_router(scheduling_router)
 app.include_router(admin_router)
+app.include_router(availability_router)
+app.include_router(quiz_router)
+app.include_router(learning_plan_router)
 
 
 @app.get("/health")
@@ -108,30 +114,10 @@ async def serve_root():
     return FileResponse(frontend_path / "login.html")
 
 
-@app.get("/dashboard.html")
-async def serve_teacher_dashboard(request: Request):
-    """Teacher dashboard — server-side role check before serving HTML."""
-    from app.routes.auth import get_current_user
-    try:
-        user = await get_current_user(request)
-        if user.get("role") != "teacher":
-            return RedirectResponse(url="/student_dashboard.html", status_code=303)
-        return FileResponse(frontend_path / "dashboard.html")
-    except Exception:
-        return RedirectResponse(url="/login.html", status_code=303)
-
-
-@app.get("/student_dashboard.html")
-async def serve_student_dashboard(request: Request):
-    """Student dashboard — server-side role check before serving HTML."""
-    from app.routes.auth import get_current_user
-    try:
-        user = await get_current_user(request)
-        if user.get("role") != "student":
-            return RedirectResponse(url="/dashboard.html", status_code=303)
-        return FileResponse(frontend_path / "student_dashboard.html")
-    except Exception:
-        return RedirectResponse(url="/login.html", status_code=303)
-
+# Dashboard pages are served as static files.
+# Role-based access is enforced client-side (APP.guardRole in each HTML)
+# and API endpoints require Bearer token authentication.
+# Server-side guards were removed because browser navigation doesn't send
+# Authorization headers (tokens are in localStorage, not cookies).
 
 app.mount("/", StaticFiles(directory=frontend_path), name="frontend")

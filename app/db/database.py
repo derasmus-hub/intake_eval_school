@@ -30,6 +30,128 @@ async def init_db():
 
 async def _run_migrations(db):
     """Add columns to existing tables if they don't exist yet."""
+
+    # Create new tables for availability feature (if not exist)
+    await db.executescript("""
+        CREATE TABLE IF NOT EXISTS teacher_weekly_windows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            teacher_id INTEGER NOT NULL,
+            day_of_week TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (teacher_id) REFERENCES students(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS teacher_availability_overrides (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            teacher_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            is_available INTEGER NOT NULL DEFAULT 1,
+            custom_windows TEXT,
+            reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (teacher_id) REFERENCES students(id),
+            UNIQUE(teacher_id, date)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_weekly_windows_teacher
+            ON teacher_weekly_windows(teacher_id);
+        CREATE INDEX IF NOT EXISTS idx_overrides_teacher_date
+            ON teacher_availability_overrides(teacher_id, date);
+    """)
+    await db.commit()
+
+    # Create Learning Loop tables (if not exist)
+    await db.executescript("""
+        -- Versioned learning plans for each student
+        CREATE TABLE IF NOT EXISTS learning_plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            version INTEGER NOT NULL DEFAULT 1,
+            plan_json TEXT NOT NULL,
+            summary TEXT,
+            source_intake_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (student_id) REFERENCES students(id),
+            FOREIGN KEY (source_intake_id) REFERENCES assessments(id)
+        );
+
+        -- Lesson artifacts generated during sessions
+        CREATE TABLE IF NOT EXISTS lesson_artifacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER,
+            student_id INTEGER NOT NULL,
+            teacher_id INTEGER,
+            lesson_json TEXT NOT NULL,
+            topics_json TEXT,
+            difficulty TEXT,
+            prompt_version TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id),
+            FOREIGN KEY (student_id) REFERENCES students(id),
+            FOREIGN KEY (teacher_id) REFERENCES students(id)
+        );
+
+        -- Quizzes generated from lesson artifacts
+        CREATE TABLE IF NOT EXISTS next_quizzes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER,
+            student_id INTEGER NOT NULL,
+            quiz_json TEXT NOT NULL,
+            derived_from_lesson_artifact_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id),
+            FOREIGN KEY (student_id) REFERENCES students(id),
+            FOREIGN KEY (derived_from_lesson_artifact_id) REFERENCES lesson_artifacts(id)
+        );
+
+        -- Quiz attempts by students
+        CREATE TABLE IF NOT EXISTS quiz_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quiz_id INTEGER NOT NULL,
+            student_id INTEGER NOT NULL,
+            session_id INTEGER,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            submitted_at TIMESTAMP,
+            score REAL,
+            results_json TEXT,
+            FOREIGN KEY (quiz_id) REFERENCES next_quizzes(id),
+            FOREIGN KEY (student_id) REFERENCES students(id),
+            FOREIGN KEY (session_id) REFERENCES sessions(id)
+        );
+
+        -- Individual question responses within a quiz attempt
+        CREATE TABLE IF NOT EXISTS quiz_attempt_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            attempt_id INTEGER NOT NULL,
+            question_id TEXT NOT NULL,
+            is_correct INTEGER NOT NULL DEFAULT 0,
+            student_answer TEXT,
+            expected_answer TEXT,
+            skill_tag TEXT,
+            time_spent INTEGER,
+            FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(id)
+        );
+
+        -- Indexes for Learning Loop tables
+        CREATE INDEX IF NOT EXISTS idx_learning_plans_student
+            ON learning_plans(student_id);
+        CREATE INDEX IF NOT EXISTS idx_lesson_artifacts_student
+            ON lesson_artifacts(student_id);
+        CREATE INDEX IF NOT EXISTS idx_lesson_artifacts_session
+            ON lesson_artifacts(session_id);
+        CREATE INDEX IF NOT EXISTS idx_next_quizzes_student
+            ON next_quizzes(student_id);
+        CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz
+            ON quiz_attempts(quiz_id);
+        CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student
+            ON quiz_attempts(student_id);
+        CREATE INDEX IF NOT EXISTS idx_quiz_attempt_items_attempt
+            ON quiz_attempt_items(attempt_id);
+    """)
+    await db.commit()
+
     migrations = [
         ("students", "role", "ALTER TABLE students ADD COLUMN role TEXT NOT NULL DEFAULT 'student'"),
         ("students", "email", "ALTER TABLE students ADD COLUMN email TEXT UNIQUE"),
