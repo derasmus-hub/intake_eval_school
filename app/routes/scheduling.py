@@ -24,12 +24,6 @@ class SessionRequest(BaseModel):
     notes: str | None = None
 
 
-class AvailabilitySlot(BaseModel):
-    start_at: str  # ISO datetime
-    end_at: str    # ISO datetime
-    recurrence_rule: str | None = None
-
-
 # ── Helpers ──────────────────────────────────────────────────────────
 
 async def _require_student(request: Request) -> dict:
@@ -407,43 +401,9 @@ async def teacher_get_session_notes(session_id: int, request: Request):
         await db.close()
 
 
-# ── Availability endpoints (groundwork for calendar UI) ──────────────
-
-@router.get("/api/teacher/availability")
-async def get_availability(request: Request):
-    """Teacher views their own availability slots."""
-    user = await _require_teacher(request)
-    db = await get_db()
-    try:
-        cur = await db.execute(
-            """SELECT id, start_at, end_at, recurrence_rule, is_available
-               FROM teacher_availability
-               WHERE teacher_id = ? AND is_available = 1
-               ORDER BY start_at""",
-            (user["id"],),
-        )
-        return {"slots": [dict(row) for row in await cur.fetchall()]}
-    finally:
-        await db.close()
-
-
-@router.post("/api/teacher/availability")
-async def add_availability(body: AvailabilitySlot, request: Request):
-    """Teacher adds an availability slot."""
-    user = await _require_teacher(request)
-    db = await get_db()
-    try:
-        cur = await db.execute(
-            """INSERT INTO teacher_availability
-               (teacher_id, start_at, end_at, recurrence_rule)
-               VALUES (?, ?, ?, ?)""",
-            (user["id"], body.start_at, body.end_at, body.recurrence_rule),
-        )
-        await db.commit()
-        return {"id": cur.lastrowid, "start_at": body.start_at, "end_at": body.end_at}
-    finally:
-        await db.close()
-
+# ── Booking slots endpoint ────────────────────────────────────────────
+# Note: Teacher availability management is handled by availability.py
+# which uses the weekly windows + overrides system.
 
 @router.get("/api/booking/slots")
 async def booking_slots(request: Request, from_date: str = "", to_date: str = ""):
