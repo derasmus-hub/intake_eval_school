@@ -58,6 +58,12 @@ def _load_settings() -> Settings:
         print("ERROR: ADMIN_SECRET must be at least 16 characters.", file=sys.stderr)
         sys.exit(1)
 
+    # API_KEY is required — reject placeholder or empty value
+    if not s.api_key or s.api_key == "your-openai-api-key-here":
+        print("ERROR: API_KEY environment variable is required but not set.", file=sys.stderr)
+        print("Set API_KEY to a valid OpenAI API key in your .env file.", file=sys.stderr)
+        sys.exit(1)
+
     return s
 
 

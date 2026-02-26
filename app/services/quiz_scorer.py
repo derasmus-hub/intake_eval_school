@@ -222,7 +222,7 @@ async def score_quiz_attempt(
 
     except Exception as e:
         logger.error(f"Error scoring quiz {quiz_id}: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Service temporarily unavailable"}
 
 
 async def get_attempt_summary(db: aiosqlite.Connection, attempt_id: int) -> Optional[Dict[str, Any]]:

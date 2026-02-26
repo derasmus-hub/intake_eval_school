@@ -369,7 +369,7 @@
             if (overlay) overlay.classList.add('hidden');
 
             if (data.ai_error) {
-                setStatus('Assessment scored (AI analysis was unavailable: ' + data.ai_error + ')', 'info');
+                setStatus('Assessment scored (AI analysis was unavailable — results based on rules only)', 'info');
             } else {
                 setStatus('Assessment complete!', 'success');
             }

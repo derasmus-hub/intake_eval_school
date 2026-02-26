@@ -240,7 +240,7 @@ async def submit_diagnostic(submission: DiagnosticSubmission, request: Request, 
     except Exception as exc:
         import traceback
         traceback.print_exc()
-        ai_error = str(exc)[:200]
+        ai_error = "AI service temporarily unavailable"
 
         bracket_to_cefr = {
             "beginner": "A1",

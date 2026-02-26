@@ -137,7 +137,7 @@ async def get_teacher_availability(request: Request, db=Depends(get_db)):
         if o.get("custom_windows"):
             try:
                 o["windows"] = json.loads(o["custom_windows"])
-            except:
+            except Exception:
                 o["windows"] = None
         else:
             o["windows"] = None
@@ -377,7 +377,7 @@ async def get_teacher_availability_for_student(
         if o["custom_windows"]:
             try:
                 windows = json.loads(o["custom_windows"])
-            except:
+            except Exception:
                 pass
         overrides[o["date"]] = {
             "is_available": bool(o["is_available"]),

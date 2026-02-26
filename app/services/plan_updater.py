@@ -297,10 +297,10 @@ async def update_learning_plan(
 
     except json.JSONDecodeError as e:
         logger.error(f"JSON decode error updating plan for student {student_id}: {e}")
-        return {"success": False, "error": f"Invalid JSON response: {str(e)}"}
+        return {"success": False, "error": "Service temporarily unavailable"}
     except Exception as e:
         logger.error(f"Error updating plan for student {student_id}: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Service temporarily unavailable"}
 
 
 async def get_student_learning_plan(db: aiosqlite.Connection, student_id: int) -> Optional[Dict[str, Any]]:
@@ -373,7 +373,7 @@ async def on_quiz_submitted(db: aiosqlite.Connection, student_id: int, quiz_id: 
 
     except Exception as e:
         logger.error(f"Error in on_quiz_submitted hook: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Service temporarily unavailable"}
 
 
 async def on_teacher_notes_added(db: aiosqlite.Connection, student_id: int, session_id: int) -> Dict[str, Any]:
@@ -414,4 +414,4 @@ async def on_teacher_notes_added(db: aiosqlite.Connection, student_id: int, sess
 
     except Exception as e:
         logger.error(f"Error in on_teacher_notes_added hook: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Service temporarily unavailable"}

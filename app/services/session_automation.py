@@ -283,10 +283,10 @@ async def build_lesson_for_session(db: aiosqlite.Connection, session_id: int) ->
 
     except json.JSONDecodeError as e:
         logger.error(f"JSON decode error building lesson for session {session_id}: {e}")
-        return {"success": False, "error": f"Invalid JSON response: {str(e)}"}
+        return {"success": False, "error": "Service temporarily unavailable"}
     except Exception as e:
         logger.error(f"Error building lesson for session {session_id}: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Service temporarily unavailable"}
 
 
 async def build_next_quiz_from_lesson(db: aiosqlite.Connection, session_id: int) -> Dict[str, Any]:
@@ -402,10 +402,10 @@ async def build_next_quiz_from_lesson(db: aiosqlite.Connection, session_id: int)
 
     except json.JSONDecodeError as e:
         logger.error(f"JSON decode error building quiz for session {session_id}: {e}")
-        return {"success": False, "error": f"Invalid JSON response: {str(e)}"}
+        return {"success": False, "error": "Service temporarily unavailable"}
     except Exception as e:
         logger.error(f"Error building quiz for session {session_id}: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "Service temporarily unavailable"}
 
 
 async def on_session_confirmed(db: aiosqlite.Connection, session_id: int, teacher_id: int) -> Dict[str, Any]:
@@ -445,7 +445,7 @@ async def on_session_confirmed(db: aiosqlite.Connection, session_id: int, teache
         result["lesson"] = {"status": STATUS_FAILED, "error": "Generation timed out"}
         logger.warning(f"Lesson generation timed out for session {session_id}")
     except Exception as e:
-        result["lesson"] = {"status": STATUS_FAILED, "error": str(e)}
+        result["lesson"] = {"status": STATUS_FAILED, "error": "Service temporarily unavailable"}
         logger.error(f"Lesson generation error for session {session_id}: {e}")
 
     # Only generate quiz if lesson succeeded
@@ -473,7 +473,7 @@ async def on_session_confirmed(db: aiosqlite.Connection, session_id: int, teache
             result["quiz"] = {"status": STATUS_FAILED, "error": "Generation timed out"}
             logger.warning(f"Quiz generation timed out for session {session_id}")
         except Exception as e:
-            result["quiz"] = {"status": STATUS_FAILED, "error": str(e)}
+            result["quiz"] = {"status": STATUS_FAILED, "error": "Service temporarily unavailable"}
             logger.error(f"Quiz generation error for session {session_id}: {e}")
 
     return result
