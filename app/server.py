@@ -1,14 +1,18 @@
 import os
+import logging
+import traceback
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from pathlib import Path
 from contextlib import asynccontextmanager
 from app.db.database import init_db, close_db
 from app.middleware.auth import AuthMiddleware
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # CORS configuration based on environment
 # ENV=prod → require explicit CORS_ORIGINS or use restrictive default
@@ -53,6 +57,12 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 app.add_middleware(AuthMiddleware)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception on %s %s:\n%s", request.method, request.url.path, traceback.format_exc())
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 # Import and register routes
 from app.routes.auth import router as auth_router

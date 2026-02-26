@@ -1,5 +1,6 @@
 import json
 import logging
+import yaml
 from app.services.ai_client import ai_chat
 from app.services.prompts import load_prompt
 from app.models.student import LearnerProfile
