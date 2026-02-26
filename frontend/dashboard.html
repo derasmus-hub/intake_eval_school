@@ -49,6 +49,24 @@
             </div>
         </div>
 
+        <!-- Teacher Calendar View -->
+        <div id="tcal-section" class="detail-panel" style="margin-bottom:1.5rem;">
+            <div class="calendar-header">
+                <button class="btn btn-sm" onclick="tcalPrevMonth()" id="tcal-prev-btn" style="background:rgba(30,41,59,0.6);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);">&larr;</button>
+                <h2 id="tcal-month-title">Loading...</h2>
+                <button class="btn btn-sm" onclick="tcalNextMonth()" id="tcal-next-btn" style="background:rgba(30,41,59,0.6);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);">&rarr;</button>
+            </div>
+            <div class="calendar-legend">
+                <span class="legend-item"><span class="legend-dot" style="background:#fbbf24;"></span> Requested</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#34d399;"></span> Confirmed</span>
+                <span class="legend-item"><span class="legend-dot" style="background:rgba(16,185,129,0.3);"></span> Available</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#475569;"></span> No sessions</span>
+            </div>
+            <div id="tcal-loading" class="calendar-loading hidden">Loading calendar...</div>
+            <div id="tcal-grid" class="calendar-grid"></div>
+            <div id="tcal-day-details" style="margin-top:1rem;"></div>
+        </div>
+
         <div id="student-detail" class="hidden">
             <button onclick="showStudentList()" class="btn btn-sm" style="margin-bottom:1rem;">
                 &larr; Back to list / Powrót do listy
@@ -146,6 +164,7 @@
     <script src="js/app.js"></script>
     <script src="js/celebrations.js"></script>
     <script src="js/dashboard.js"></script>
+    <script src="js/teacher-dashboard-calendar.js"></script>
     <script src="js/charts.js"></script>
     <script>
         // Role guard: only teachers allowed here; students go to their own dashboard

@@ -246,8 +246,14 @@ async def student_get_progress(request: Request, db=Depends(get_db)):
 # -- Teacher endpoints ----------------------------------------------------
 
 @router.get("/api/teacher/sessions")
-async def teacher_sessions(request: Request, status: str | None = None, db=Depends(get_db)):
-    """List sessions visible to the teacher, optionally filtered by status.
+async def teacher_sessions(
+    request: Request,
+    status: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    db=Depends(get_db),
+):
+    """List sessions visible to the teacher, optionally filtered by status and date range.
 
     Scoped to the teacher's organization.
     """
@@ -271,6 +277,13 @@ async def teacher_sessions(request: Request, status: str | None = None, db=Depen
     if org_id:
         conditions.append("st.org_id = ?")
         params.append(org_id)
+
+    if from_date:
+        conditions.append("s.scheduled_at >= ?")
+        params.append(from_date)
+    if to_date:
+        conditions.append("s.scheduled_at <= ?")
+        params.append(to_date + "T23:59:59")
 
     where = " WHERE " + " AND ".join(conditions) if conditions else ""
     cur = await db.execute(base + where + " ORDER BY s.scheduled_at", params)

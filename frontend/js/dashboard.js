@@ -972,6 +972,7 @@ async function confirmSession(sessionId) {
             return;
         }
         loadTeacherSessions();
+        if (typeof window.tcalRefresh === 'function') window.tcalRefresh();
     } catch (err) {
         alert('Error: ' + err.message);
     }
@@ -987,6 +988,7 @@ async function cancelSession(sessionId) {
             return;
         }
         loadTeacherSessions();
+        if (typeof window.tcalRefresh === 'function') window.tcalRefresh();
     } catch (err) {
         alert('Error: ' + err.message);
     }
