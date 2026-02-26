@@ -48,6 +48,8 @@
                 <span class="legend-item"><span class="legend-dot legend-available"></span> Available / Dostepny</span>
                 <span class="legend-item"><span class="legend-dot legend-unavailable"></span> Unavailable / Niedostepny</span>
                 <span class="legend-item"><span class="legend-dot legend-no-hours"></span> No hours set / Brak godzin</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#fbbf24;"></span> Requested / Oczekujaca</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#34d399;"></span> Confirmed / Potwierdzona</span>
             </div>
 
             <div id="calendar-grid" class="calendar-grid">
@@ -76,10 +78,27 @@
         <div class="form-section" id="book-cta-section" style="display:none;">
             <div class="book-cta">
                 <div class="book-cta-text">
-                    <strong>Found a good time? / Znalazles dobry termin?</strong>
-                    <p>Go back to your dashboard to request a session at this time.</p>
+                    <strong>Request a session / Popros o sesje</strong>
+                    <p>Pick a time and duration, then submit your request.</p>
+                    <p><em>Wybierz godzine i czas trwania, a nastepnie wyslij prosbe.</em></p>
                 </div>
-                <a href="student_dashboard.html" class="btn btn-primary">Request Session / Popros o sesje</a>
+                <div class="book-cta-form" style="display:flex;gap:0.75rem;align-items:flex-end;flex-wrap:wrap;">
+                    <div class="form-group" style="margin:0;">
+                        <label for="session-time" style="font-size:0.75rem;color:#94a3b8;">Time / Godzina</label>
+                        <input type="time" id="session-time" value="10:00" style="padding:0.4rem 0.5rem;border-radius:6px;border:1px solid rgba(148,163,184,0.2);background:rgba(15,23,42,0.6);color:#e2e8f0;">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label for="session-duration" style="font-size:0.75rem;color:#94a3b8;">Duration / Czas</label>
+                        <select id="session-duration" style="padding:0.4rem 0.5rem;border-radius:6px;border:1px solid rgba(148,163,184,0.2);background:rgba(15,23,42,0.6);color:#e2e8f0;">
+                            <option value="30">30 min</option>
+                            <option value="45">45 min</option>
+                            <option value="60" selected>60 min</option>
+                            <option value="90">90 min</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="submitCalendarRequest()">Request / Wyslij</button>
+                </div>
+                <div id="book-cta-status" style="margin-top:0.5rem;font-size:0.8rem;"></div>
             </div>
         </div>
 

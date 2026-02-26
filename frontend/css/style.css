@@ -2219,6 +2219,38 @@ footer a:hover {
     font-weight: 500;
 }
 
+.cal-session-badge {
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+.cal-session-badge.pending {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+.cal-session-badge.confirmed {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+}
+
+.cal-session-info {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 6px;
+}
+.cal-session-info.pending {
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+}
+.cal-session-info.confirmed {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    color: #34d399;
+}
+
 /* Month context classes */
 .calendar-cell.other-month {
     background: rgba(15, 23, 42, 0.2);
@@ -2565,6 +2597,10 @@ footer a:hover {
     }
     .cal-window-count {
         font-size: 0.58rem;
+    }
+    .cal-session-badge {
+        font-size: 0.55rem;
+        padding: 0.05rem 0.25rem;
     }
     .weekly-grid {
         grid-template-columns: 1fr;

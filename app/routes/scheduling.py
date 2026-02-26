@@ -23,6 +23,7 @@ class SessionRequest(BaseModel):
     scheduled_at: str  # ISO datetime
     duration_min: int = 60
     notes: str | None = None
+    teacher_id: int | None = None
 
 
 # -- Helpers --------------------------------------------------------------
@@ -98,10 +99,17 @@ async def student_request_session(body: SessionRequest, request: Request, db=Dep
     if body.duration_min < 15 or body.duration_min > 180:
         raise HTTPException(status_code=422, detail="duration_min must be 15-180")
 
+    if body.teacher_id is not None:
+        tcur = await db.execute(
+            "SELECT id FROM users WHERE id = ? AND role = 'teacher'", (body.teacher_id,)
+        )
+        if not await tcur.fetchone():
+            raise HTTPException(status_code=404, detail="Teacher not found")
+
     cur = await db.execute(
-        """INSERT INTO sessions (student_id, scheduled_at, duration_min, notes, status)
-           VALUES (?, ?, ?, ?, 'requested')""",
-        (user["id"], body.scheduled_at, body.duration_min, body.notes),
+        """INSERT INTO sessions (student_id, teacher_id, scheduled_at, duration_min, notes, status)
+           VALUES (?, ?, ?, ?, ?, 'requested')""",
+        (user["id"], body.teacher_id, body.scheduled_at, body.duration_min, body.notes),
     )
     await db.commit()
     session_id = cur.lastrowid
@@ -110,7 +118,38 @@ async def student_request_session(body: SessionRequest, request: Request, db=Dep
         "status": "requested",
         "scheduled_at": body.scheduled_at,
         "duration_min": body.duration_min,
+        "teacher_id": body.teacher_id,
     }
+
+
+@router.get("/api/students/teacher-sessions")
+async def student_teacher_sessions(
+    request: Request,
+    teacher_id: int = 0,
+    from_date: str = "",
+    to_date: str = "",
+    db=Depends(get_db),
+):
+    """Student fetches their own sessions with a specific teacher for a date range."""
+    user = await _require_student(request, db)
+    if not teacher_id:
+        raise HTTPException(status_code=422, detail="teacher_id is required")
+
+    params: list = [user["id"], teacher_id]
+    query = """SELECT id, scheduled_at, status, duration_min, notes
+               FROM sessions
+               WHERE student_id = ? AND teacher_id = ?
+                 AND status IN ('requested', 'confirmed')"""
+    if from_date:
+        query += " AND scheduled_at >= ?"
+        params.append(from_date)
+    if to_date:
+        query += " AND scheduled_at <= ?"
+        params.append(to_date + "T23:59:59")
+    query += " ORDER BY scheduled_at"
+
+    cur = await db.execute(query, params)
+    return {"sessions": [dict(row) for row in await cur.fetchall()]}
 
 
 class StudentProgressEntry(BaseModel):

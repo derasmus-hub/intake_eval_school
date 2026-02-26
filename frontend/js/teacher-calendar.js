@@ -26,6 +26,7 @@
     let currentMonth = new Date().getMonth(); // 0-indexed
     let availabilityData = null; // null = not loaded, {} = loaded but empty
     let selectedDate = null;
+    let sessionData = {}; // keyed by "YYYY-MM-DD" → session object
 
     // ── Initialization ───────────────────────────────────────────────
 
@@ -149,6 +150,7 @@
                 };
             });
 
+            await loadSessions(teacherId, year, month);
             showLoading(false);
             renderCalendar();
 
@@ -161,6 +163,34 @@
         }
     }
 
+    async function loadSessions(teacherId, year, month) {
+        if (!teacherId) return;
+        sessionData = {};
+
+        var firstDay = new Date(year, month, 1);
+        var lastDay = new Date(year, month + 1, 0);
+        var fromStr = formatDateISO(firstDay);
+        var toStr = formatDateISO(lastDay);
+
+        try {
+            var resp = await apiFetch(
+                '/api/students/teacher-sessions?teacher_id=' + teacherId +
+                '&from_date=' + fromStr + '&to_date=' + toStr
+            );
+            if (!resp.ok) return; // fail silently
+            var data = await resp.json();
+            (data.sessions || []).forEach(function (s) {
+                var dateKey = s.scheduled_at ? s.scheduled_at.substring(0, 10) : null;
+                if (dateKey) {
+                    sessionData[dateKey] = s;
+                }
+            });
+        } catch (err) {
+            console.error('[teacher-calendar] Load sessions error:', err);
+            // fail silently — calendar still shows availability
+        }
+    }
+
     // ── Event Handlers ───────────────────────────────────────────────
 
     function onTeacherChange() {
@@ -168,6 +198,7 @@
         selectedTeacherId = select.value ? parseInt(select.value, 10) : null;
         selectedDate = null;
         availabilityData = null;
+        sessionData = {};
         renderDayDetails();
 
         // Hide book CTA on teacher change
@@ -214,8 +245,14 @@
 
         var dayData = availabilityData ? availabilityData[dateStr] : null;
         var bookCta = document.getElementById('book-cta-section');
-        if (dayData && dayData.available && dayData.windows.length > 0) {
+        var hasSession = !!sessionData[dateStr];
+
+        // Show request form only if day is available and no session already exists
+        if (dayData && dayData.available && dayData.windows.length > 0 && !hasSession) {
             bookCta.style.display = 'block';
+            // Clear any previous status message
+            var statusEl = document.getElementById('book-cta-status');
+            if (statusEl) statusEl.innerHTML = '';
         } else {
             bookCta.style.display = 'none';
         }
@@ -339,9 +376,24 @@
             windowInfo = '<span class="cal-window-count">' + dayData.windows.length + ' slot' + (dayData.windows.length > 1 ? 's' : '') + '</span>';
         }
 
+        var sessionBadge = '';
+        var sess = sessionData[dateStr];
+        if (sess) {
+            var badgeClass = sess.status === 'confirmed' ? 'confirmed' : 'pending';
+            var badgeLabel = sess.status === 'confirmed' ? 'Conf' : 'Req';
+            sessionBadge = '<span class="cal-session-badge ' + badgeClass + '">' + badgeLabel + '</span>';
+            // Make days with sessions clickable even if not available
+            if (!clickable) {
+                clickable = true;
+                onClick = ' onclick="selectDay(\'' + dateStr + '\')"';
+                cursorStyle = 'cursor:pointer;';
+            }
+        }
+
         return '<div class="calendar-cell ' + monthClass + ' ' + statusClass + ' ' + selectedClass + ' ' + todayClass + '"' + onClick + ' style="' + cursorStyle + '">' +
             '<span class="cal-day-num">' + dayNum + '</span>' +
             windowInfo +
+            sessionBadge +
         '</div>';
     }
 
@@ -407,13 +459,36 @@
                 '</div>';
         });
 
-        html +=
-                '</div>' +
+        html += '</div>';
+
+        // Show session info if one exists for this day
+        var sess = sessionData[selectedDate];
+        if (sess) {
+            var sessionTime = sess.scheduled_at ? sess.scheduled_at.substring(11, 16) : '';
+            if (sess.status === 'confirmed') {
+                html +=
+                    '<div class="cal-session-info confirmed">' +
+                        '<strong>Session confirmed! / Sesja potwierdzona!</strong>' +
+                        (sessionTime ? '<br>Time / Godzina: ' + escapeHtml(sessionTime) : '') +
+                        '<br>Duration / Czas: ' + sess.duration_min + ' min' +
+                    '</div>';
+            } else {
+                html +=
+                    '<div class="cal-session-info pending">' +
+                        '<strong>You have a pending request / Masz oczekujaca prosbe</strong>' +
+                        (sessionTime ? '<br>Time / Godzina: ' + escapeHtml(sessionTime) : '') +
+                        '<br>Duration / Czas: ' + sess.duration_min + ' min' +
+                    '</div>';
+            }
+        } else {
+            html +=
                 '<p class="meta" style="margin-top:1rem;">' +
-                    'To book a session at one of these times, go back to your dashboard and submit a request.' +
-                    '<br><em>Aby zarezerwowac sesje, wroc do panelu i wyslij prosbe.</em>' +
-                '</p>' +
-            '</div>';
+                    'Use the form below to request a session at one of these times.' +
+                    '<br><em>Uzyj formularza ponizej, aby zarezerwowac sesje.</em>' +
+                '</p>';
+        }
+
+        html += '</div>';
 
         contentEl.innerHTML = html;
     }
@@ -454,12 +529,60 @@
         return div.innerHTML;
     }
 
+    async function submitCalendarRequest() {
+        if (!selectedDate || !selectedTeacherId) return;
+
+        var timeInput = document.getElementById('session-time');
+        var durationSelect = document.getElementById('session-duration');
+        var statusEl = document.getElementById('book-cta-status');
+
+        var time = timeInput ? timeInput.value : '10:00';
+        var duration = durationSelect ? parseInt(durationSelect.value, 10) : 60;
+        var scheduledAt = selectedDate + 'T' + time + ':00';
+
+        statusEl.innerHTML = '<span style="color:#94a3b8;">Submitting... / Wysylanie...</span>';
+
+        try {
+            var resp = await apiFetch('/api/student/me/sessions/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    teacher_id: selectedTeacherId,
+                    scheduled_at: scheduledAt,
+                    duration_min: duration
+                })
+            });
+
+            if (!resp.ok) {
+                var err = await resp.json().catch(function () { return {}; });
+                statusEl.innerHTML = '<span style="color:#f87171;">' + escapeHtml(err.detail || 'Request failed') + '</span>';
+                return;
+            }
+
+            statusEl.innerHTML = '<span style="color:#34d399;">Request sent! / Prosba wyslana!</span>';
+
+            // Refresh session data and re-render
+            await loadSessions(selectedTeacherId, currentYear, currentMonth);
+            renderCalendar();
+            renderDayDetails();
+
+            // Hide the form since a session now exists for this day
+            var bookCta = document.getElementById('book-cta-section');
+            if (bookCta) bookCta.style.display = 'none';
+
+        } catch (err) {
+            console.error('[teacher-calendar] Submit request error:', err);
+            statusEl.innerHTML = '<span style="color:#f87171;">Error: ' + escapeHtml(err.message) + '</span>';
+        }
+    }
+
     // ── Expose Functions Globally ────────────────────────────────────
 
     window.onTeacherChange = onTeacherChange;
     window.prevMonth = prevMonth;
     window.nextMonth = nextMonth;
     window.selectDay = selectDay;
+    window.submitCalendarRequest = submitCalendarRequest;
 
     // Initialize on DOM ready
     if (document.readyState === 'loading') {
