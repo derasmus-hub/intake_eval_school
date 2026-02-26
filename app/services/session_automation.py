@@ -11,29 +11,19 @@ import json
 import logging
 import asyncio
 from typing import Optional, Dict, Any
-from pathlib import Path
-import yaml
 
-from openai import AsyncOpenAI
-from app.config import settings
-from app.db.database import get_db
+from app.services.ai_client import ai_chat
+from app.services.prompts import load_prompt
+import aiosqlite
 from app.db import learning_loop as ll
 
 logger = logging.getLogger(__name__)
 
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
 PROMPT_VERSION = "v1.0.0"
 
-# Generation status constants
 STATUS_PENDING = "pending"
 STATUS_COMPLETED = "completed"
 STATUS_FAILED = "failed"
-
-
-def load_prompt(name: str) -> dict:
-    """Load a prompt YAML file."""
-    with open(PROMPTS_DIR / name, "r") as f:
-        return yaml.safe_load(f)
 
 
 async def get_session_details(db, session_id: int) -> Optional[Dict[str, Any]]:
@@ -43,7 +33,7 @@ async def get_session_details(db, session_id: int) -> Optional[Dict[str, Any]]:
                   s.status, s.notes,
                   st.name as student_name, st.current_level, st.goals, st.problem_areas
            FROM sessions s
-           JOIN students st ON st.id = s.student_id
+           JOIN users st ON st.id = s.student_id
            WHERE s.id = ?""",
         (session_id,)
     )
@@ -198,14 +188,13 @@ async def quiz_exists_for_session(db, session_id: int) -> bool:
     return await cursor.fetchone() is not None
 
 
-async def build_lesson_for_session(session_id: int) -> Dict[str, Any]:
+async def build_lesson_for_session(db: aiosqlite.Connection, session_id: int) -> Dict[str, Any]:
     """
     Generate a personalized lesson for the confirmed session.
 
     Returns:
         dict with keys: success, artifact_id, error (if any)
     """
-    db = await get_db()
     try:
         # Check idempotency - don't regenerate if already exists
         if await lesson_artifact_exists_for_session(db, session_id):
@@ -258,19 +247,16 @@ async def build_lesson_for_session(session_id: int) -> Dict[str, Any]:
             recall_weak_areas=recall_text,
         )
 
-        # Call OpenAI
-        client = AsyncOpenAI(api_key=settings.api_key)
-        response = await client.chat.completions.create(
-            model=settings.model_name,
+        # Call AI
+        result_text = await ai_chat(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
+            use_case="lesson",
             temperature=0.7,
-            response_format={"type": "json_object"},
+            json_mode=True,
         )
-
-        result_text = response.choices[0].message.content
         lesson_json = json.loads(result_text)
 
         # Extract topics for indexing
@@ -301,18 +287,15 @@ async def build_lesson_for_session(session_id: int) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error building lesson for session {session_id}: {e}")
         return {"success": False, "error": str(e)}
-    finally:
-        await db.close()
 
 
-async def build_next_quiz_from_lesson(session_id: int) -> Dict[str, Any]:
+async def build_next_quiz_from_lesson(db: aiosqlite.Connection, session_id: int) -> Dict[str, Any]:
     """
     Generate a quiz from the lesson artifact for this session.
 
     Returns:
         dict with keys: success, quiz_id, error (if any)
     """
-    db = await get_db()
     try:
         # Check idempotency
         if await quiz_exists_for_session(db, session_id):
@@ -343,7 +326,7 @@ async def build_next_quiz_from_lesson(session_id: int) -> Dict[str, Any]:
 
         # Get student level
         cursor = await db.execute(
-            "SELECT current_level FROM students WHERE id = ?",
+            "SELECT current_level FROM users WHERE id = ?",
             (student_id,)
         )
         student_row = await cursor.fetchone()
@@ -393,19 +376,16 @@ async def build_next_quiz_from_lesson(session_id: int) -> Dict[str, Any]:
             current_level=current_level,
         )
 
-        # Call OpenAI
-        client = AsyncOpenAI(api_key=settings.api_key)
-        response = await client.chat.completions.create(
-            model=settings.model_name,
+        # Call AI
+        result_text = await ai_chat(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
+            use_case="lesson",
             temperature=0.7,
-            response_format={"type": "json_object"},
+            json_mode=True,
         )
-
-        result_text = response.choices[0].message.content
         quiz_json = json.loads(result_text)
 
         # Store quiz
@@ -426,11 +406,9 @@ async def build_next_quiz_from_lesson(session_id: int) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error building quiz for session {session_id}: {e}")
         return {"success": False, "error": str(e)}
-    finally:
-        await db.close()
 
 
-async def on_session_confirmed(session_id: int, teacher_id: int) -> Dict[str, Any]:
+async def on_session_confirmed(db: aiosqlite.Connection, session_id: int, teacher_id: int) -> Dict[str, Any]:
     """
     Main hook called when a session is confirmed.
     Runs lesson and quiz generation with fail-soft behavior.
@@ -446,7 +424,7 @@ async def on_session_confirmed(session_id: int, teacher_id: int) -> Dict[str, An
     try:
         # Generate lesson (with timeout to avoid blocking)
         lesson_result = await asyncio.wait_for(
-            build_lesson_for_session(session_id),
+            build_lesson_for_session(db, session_id),
             timeout=30.0  # 30 second timeout
         )
 
@@ -474,7 +452,7 @@ async def on_session_confirmed(session_id: int, teacher_id: int) -> Dict[str, An
     if result["lesson"]["status"] == STATUS_COMPLETED:
         try:
             quiz_result = await asyncio.wait_for(
-                build_next_quiz_from_lesson(session_id),
+                build_next_quiz_from_lesson(db, session_id),
                 timeout=30.0
             )
 
@@ -501,62 +479,54 @@ async def on_session_confirmed(session_id: int, teacher_id: int) -> Dict[str, An
     return result
 
 
-async def get_session_lesson(session_id: int) -> Optional[Dict[str, Any]]:
+async def get_session_lesson(db: aiosqlite.Connection, session_id: int) -> Optional[Dict[str, Any]]:
     """Get the lesson artifact for a session."""
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            """SELECT la.*, s.scheduled_at, s.status as session_status
-               FROM lesson_artifacts la
-               JOIN sessions s ON s.id = la.session_id
-               WHERE la.session_id = ?""",
-            (session_id,)
-        )
-        row = await cursor.fetchone()
-        if not row:
-            return None
+    cursor = await db.execute(
+        """SELECT la.*, s.scheduled_at, s.status as session_status
+           FROM lesson_artifacts la
+           JOIN sessions s ON s.id = la.session_id
+           WHERE la.session_id = ?""",
+        (session_id,)
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return None
 
-        result = dict(row)
+    result = dict(row)
 
-        # Parse JSON fields
-        for field in ['lesson_json', 'topics_json']:
-            if result.get(field) and isinstance(result[field], str):
-                try:
-                    result[field] = json.loads(result[field])
-                except:
-                    pass
+    # Parse JSON fields
+    for field in ['lesson_json', 'topics_json']:
+        if result.get(field) and isinstance(result[field], str):
+            try:
+                result[field] = json.loads(result[field])
+            except:
+                pass
 
-        return result
-    finally:
-        await db.close()
+    return result
 
 
-async def get_session_quiz(session_id: int) -> Optional[Dict[str, Any]]:
+async def get_session_quiz(db: aiosqlite.Connection, session_id: int) -> Optional[Dict[str, Any]]:
     """Get the quiz for a session."""
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            """SELECT nq.*, la.lesson_json, s.scheduled_at, s.status as session_status
-               FROM next_quizzes nq
-               LEFT JOIN lesson_artifacts la ON la.id = nq.derived_from_lesson_artifact_id
-               JOIN sessions s ON s.id = nq.session_id
-               WHERE nq.session_id = ?""",
-            (session_id,)
-        )
-        row = await cursor.fetchone()
-        if not row:
-            return None
+    cursor = await db.execute(
+        """SELECT nq.*, la.lesson_json, s.scheduled_at, s.status as session_status
+           FROM next_quizzes nq
+           LEFT JOIN lesson_artifacts la ON la.id = nq.derived_from_lesson_artifact_id
+           JOIN sessions s ON s.id = nq.session_id
+           WHERE nq.session_id = ?""",
+        (session_id,)
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return None
 
-        result = dict(row)
+    result = dict(row)
 
-        # Parse JSON fields
-        for field in ['quiz_json', 'lesson_json']:
-            if result.get(field) and isinstance(result[field], str):
-                try:
-                    result[field] = json.loads(result[field])
-                except:
-                    pass
+    # Parse JSON fields
+    for field in ['quiz_json', 'lesson_json']:
+        if result.get(field) and isinstance(result[field], str):
+            try:
+                result[field] = json.loads(result[field])
+            except:
+                pass
 
-        return result
-    finally:
-        await db.close()
+    return result

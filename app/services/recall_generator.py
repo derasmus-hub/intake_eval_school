@@ -1,53 +1,43 @@
 import json
-import yaml
-from pathlib import Path
+import logging
 from datetime import datetime
-from openai import AsyncOpenAI
-from app.config import settings
-from app.db.database import get_db
+from app.services.ai_client import ai_chat
+from app.services.prompts import load_prompt
+import aiosqlite
 from app.services.srs_engine import sm2_update
 
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
+logger = logging.getLogger(__name__)
 
 
-def load_prompt(name: str) -> dict:
-    with open(PROMPTS_DIR / name, "r") as f:
-        return yaml.safe_load(f)
-
-
-async def get_points_due_for_review(student_id: int) -> list[dict]:
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            """SELECT * FROM learning_points
-               WHERE student_id = ?
-                 AND (next_review_date <= datetime('now')
-                      OR last_recall_score < 70
-                      OR times_reviewed = 0)
-               ORDER BY
-                 CASE WHEN last_recall_score IS NULL THEN 0 ELSE last_recall_score END ASC,
-                 next_review_date ASC
-               LIMIT 10""",
-            (student_id,),
-        )
-        rows = await cursor.fetchall()
-        return [
-            {
-                "id": row["id"],
-                "student_id": row["student_id"],
-                "lesson_id": row["lesson_id"],
-                "point_type": row["point_type"],
-                "content": row["content"],
-                "polish_explanation": row["polish_explanation"],
-                "example_sentence": row["example_sentence"],
-                "importance_weight": row["importance_weight"],
-                "times_reviewed": row["times_reviewed"],
-                "last_recall_score": row["last_recall_score"],
-            }
-            for row in rows
-        ]
-    finally:
-        await db.close()
+async def get_points_due_for_review(db: aiosqlite.Connection, student_id: int) -> list[dict]:
+    cursor = await db.execute(
+        """SELECT * FROM learning_points
+           WHERE student_id = ?
+             AND (next_review_date <= datetime('now')
+                  OR last_recall_score < 70
+                  OR times_reviewed = 0)
+           ORDER BY
+             CASE WHEN last_recall_score IS NULL THEN 0 ELSE last_recall_score END ASC,
+             next_review_date ASC
+           LIMIT 10""",
+        (student_id,),
+    )
+    rows = await cursor.fetchall()
+    return [
+        {
+            "id": row["id"],
+            "student_id": row["student_id"],
+            "lesson_id": row["lesson_id"],
+            "point_type": row["point_type"],
+            "content": row["content"],
+            "polish_explanation": row["polish_explanation"],
+            "example_sentence": row["example_sentence"],
+            "importance_weight": row["importance_weight"],
+            "times_reviewed": row["times_reviewed"],
+            "last_recall_score": row["last_recall_score"],
+        }
+        for row in rows
+    ]
 
 
 async def generate_recall_questions(points: list[dict], student_level: str) -> dict:
@@ -70,19 +60,25 @@ async def generate_recall_questions(points: list[dict], student_level: str) -> d
         learning_points_text=points_text,
     )
 
-    client = AsyncOpenAI(api_key=settings.api_key)
+    try:
+        result_text = await ai_chat(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            use_case="cheap",
+            temperature=0.5,
+            json_mode=True,
+        )
+    except Exception as exc:
+        logger.error("AI call failed during recall question generation: %s", exc)
+        raise ValueError("AI failed to generate recall questions") from exc
 
-    response = await client.chat.completions.create(
-        model=settings.model_name,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
-        temperature=0.5,
-        response_format={"type": "json_object"},
-    )
-
-    result = json.loads(response.choices[0].message.content)
+    try:
+        result = json.loads(result_text)
+    except json.JSONDecodeError as exc:
+        logger.error("AI returned invalid JSON for recall questions: %s", exc)
+        raise ValueError("AI failed to generate recall questions") from exc
     return result
 
 
@@ -114,19 +110,25 @@ async def evaluate_recall_answers(questions: list[dict], answers: list, student_
         qa_text=qa_text,
     )
 
-    client = AsyncOpenAI(api_key=settings.api_key)
+    try:
+        result_text = await ai_chat(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            use_case="cheap",
+            temperature=0.3,
+            json_mode=True,
+        )
+    except Exception as exc:
+        logger.error("AI call failed during recall evaluation: %s", exc)
+        raise ValueError("AI failed to evaluate recall answers") from exc
 
-    response = await client.chat.completions.create(
-        model=settings.model_name,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
-        temperature=0.3,
-        response_format={"type": "json_object"},
-    )
-
-    result = json.loads(response.choices[0].message.content)
+    try:
+        result = json.loads(result_text)
+    except json.JSONDecodeError as exc:
+        logger.error("AI returned invalid JSON for recall evaluation: %s", exc)
+        raise ValueError("AI failed to evaluate recall answers") from exc
     return result
 
 
@@ -145,44 +147,40 @@ def _score_to_quality(score: float) -> int:
         return 5
 
 
-async def update_review_schedule(point_id: int, score: float):
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT ease_factor, interval_days, repetitions, times_reviewed FROM learning_points WHERE id = ?",
-            (point_id,),
-        )
-        row = await cursor.fetchone()
-        if not row:
-            return
+async def update_review_schedule(db: aiosqlite.Connection, point_id: int, score: float):
+    cursor = await db.execute(
+        "SELECT ease_factor, interval_days, repetitions, times_reviewed FROM learning_points WHERE id = ?",
+        (point_id,),
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return
 
-        quality = _score_to_quality(score)
-        updated = sm2_update(
-            ease_factor=row["ease_factor"],
-            interval_days=row["interval_days"],
-            repetitions=row["repetitions"],
-            quality=quality,
-        )
+    quality = _score_to_quality(score)
+    updated = sm2_update(
+        ease_factor=row["ease_factor"],
+        interval_days=row["interval_days"],
+        repetitions=row["repetitions"],
+        quality=quality,
+    )
 
-        await db.execute(
-            """UPDATE learning_points
-               SET ease_factor = ?,
-                   interval_days = ?,
-                   repetitions = ?,
-                   times_reviewed = ?,
-                   last_recall_score = ?,
-                   next_review_date = ?
-               WHERE id = ?""",
-            (
-                updated["ease_factor"],
-                updated["interval_days"],
-                updated["repetitions"],
-                row["times_reviewed"] + 1,
-                score,
-                updated["next_review"],
-                point_id,
-            ),
-        )
-        await db.commit()
-    finally:
-        await db.close()
+    await db.execute(
+        """UPDATE learning_points
+           SET ease_factor = ?,
+               interval_days = ?,
+               repetitions = ?,
+               times_reviewed = ?,
+               last_recall_score = ?,
+               next_review_date = ?
+           WHERE id = ?""",
+        (
+            updated["ease_factor"],
+            updated["interval_days"],
+            updated["repetitions"],
+            row["times_reviewed"] + 1,
+            score,
+            updated["next_review"],
+            point_id,
+        ),
+    )
+    await db.commit()

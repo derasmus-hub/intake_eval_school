@@ -6,9 +6,20 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     api_key: str = "your-openai-api-key-here"
-    model_name: str = "gpt-4o-mini"
+    model_name: str = "gpt-4o"
+    # AI provider: "openai" or "anthropic"
+    ai_provider: str = "openai"
+    # Anthropic API key (optional, only needed if ai_provider=anthropic)
+    anthropic_api_key: str = ""
+    # Model overrides per use case (empty = use default model_name)
+    lesson_model: str = "gpt-4o"
+    assessment_model: str = "gpt-4o"
+    cheap_model: str = "gpt-4o-mini"
     # Database path - can be overridden via DATABASE_PATH env var for Docker
     database_path: str = "intake_eval.db"
+    # PostgreSQL connection URL (when set, overrides database_path)
+    # e.g. postgresql://user:pass@localhost:5432/intake_eval
+    database_url: str = ""
     # JWT_SECRET must be set via environment variable - no default
     jwt_secret: str = ""
     # Environment: "dev" (default) or "prod"

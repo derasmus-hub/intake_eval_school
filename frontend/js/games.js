@@ -418,7 +418,7 @@ async function endGame() {
         else msg = 'Keep practicing! / Cwicz dalej!';
 
         fb.innerHTML = `<p style="text-align:center;font-size:1.1rem;margin:1rem 0;">${msg}</p>
-            <p style="text-align:center;color:#7f8c8d;">
+            <p style="text-align:center;color:#64748b;">
                 ${gameCorrect}/${gameTotal} correct in ${gameSeconds}s
             </p>`;
     } catch (err) {

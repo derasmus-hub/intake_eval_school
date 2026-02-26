@@ -369,7 +369,7 @@ function renderIntakeSummary(student, container) {
 
     // Additional notes
     if (notes) {
-        html += `<div class="intake-field" style="margin-top:0.5rem;"><strong>Notes / Uwagi:</strong><p style="margin:0.25rem 0 0 0;color:#555;">${escapeHtml(notes)}</p></div>`;
+        html += `<div class="intake-field" style="margin-top:0.5rem;"><strong>Notes / Uwagi:</strong><p style="margin:0.25rem 0 0 0;color:#94a3b8;">${escapeHtml(notes)}</p></div>`;
     }
 
     html += '</div>';
@@ -582,7 +582,7 @@ function renderExerciseList(exercises) {
                     <strong>[${ex.type || 'exercise'}]</strong> ${escapeHtml(ex.instruction || '')}
                     ${ex.instruction_pl ? '<br><em>' + escapeHtml(ex.instruction_pl) + '</em>' : ''}
                     <br>${escapeHtml(ex.content || '')}
-                    <br><small>Answer: <span style="color:#888">${escapeHtml(ex.answer || '')}</span></small>
+                    <br><small>Answer: <span style="color:#64748b">${escapeHtml(ex.answer || '')}</span></small>
                 </li>
             `).join('')}
         </ol>
@@ -626,7 +626,7 @@ function renderLessons(lessons) {
                             <button onclick="submitProgress(${lesson.id}, ${lesson.student_id})" class="btn btn-sm btn-secondary">Submit</button>
                         </div>
                     </div>
-                ` : '<p style="color:#2ecc71;margin-top:0.5rem;"><strong>Completed</strong></p>'}
+                ` : '<p style="color:#34d399;margin-top:0.5rem;"><strong>Completed</strong></p>'}
             </div>
         `;
     }).join('');
@@ -866,7 +866,7 @@ async function loadProgress() {
 
             <h3>History / Historia</h3>
             ${summary.entries.map(e => `
-                <div style="padding:0.5rem;background:#f8f9fa;margin-bottom:0.25rem;border-radius:4px;">
+                <div style="padding:0.5rem;background:rgba(15,23,42,0.5);margin-bottom:0.25rem;border-radius:6px;border:1px solid rgba(255,255,255,0.06);">
                     Lesson #${e.lesson_id} - Score: <strong>${e.score}%</strong>
                     ${e.notes ? ' - ' + escapeHtml(e.notes) : ''}
                 </div>
@@ -931,7 +931,7 @@ async function loadTeacherSessions() {
             if (s.status === 'requested') {
                 actions = '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap;">' +
                     '<button class="btn btn-sm btn-primary" onclick="confirmSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;">Confirm / Potwierdź</button>' +
-                    '<button class="btn btn-sm" onclick="cancelSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:#e74c3c;color:white;">Cancel / Anuluj</button>' +
+                    '<button class="btn btn-sm" onclick="cancelSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:rgba(239,68,68,0.2);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);">Cancel / Anuluj</button>' +
                     '</div>';
             } else if (s.status === 'confirmed') {
                 // Store session data for ICS download
@@ -939,7 +939,7 @@ async function loadTeacherSessions() {
                 actions = '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap;">' +
                     '<button class="btn btn-sm btn-secondary" onclick="openNotesModal(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;">Log Notes / Zapisz notatki</button>' +
                     '<button class="btn-calendar" onclick=\'downloadICS(' + JSON.stringify(s) + ')\'><span class="btn-calendar-icon"></span> Add to Calendar</button>' +
-                    '<button class="btn btn-sm" onclick="cancelSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:#e74c3c;color:white;">Cancel / Anuluj</button>' +
+                    '<button class="btn btn-sm" onclick="cancelSession(' + s.id + ')" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:rgba(239,68,68,0.2);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);">Cancel / Anuluj</button>' +
                     '</div>';
             }
 
@@ -992,12 +992,53 @@ async function cancelSession(sessionId) {
     }
 }
 
-// ── Session Notes Modal ───────────────────────────────────────────
+// ── Session Notes & Observations Modal ────────────────────────────
 
 let notesModalSessionId = null;
+let vocabChips = [];
+
+// Grammar taxonomy for the dropdown
+const GRAMMAR_TAXONOMY = [
+    'Articles (a/an/the)',
+    'Prepositions (in/on/at)',
+    'Present Simple',
+    'Present Continuous',
+    'Past Simple',
+    'Past Continuous',
+    'Present Perfect',
+    'Present Perfect Continuous',
+    'Past Perfect',
+    'Future (will / going to)',
+    'Conditionals (0/1st)',
+    'Conditionals (2nd/3rd)',
+    'Modal Verbs',
+    'Passive Voice',
+    'Reported Speech',
+    'Relative Clauses',
+    'Comparatives & Superlatives',
+    'Word Order / Syntax',
+    'Phrasal Verbs',
+    'Gerunds & Infinitives',
+    'Subject-Verb Agreement',
+    'Countable / Uncountable Nouns',
+    'Pronouns & Determiners',
+    'Conjunctions & Connectors',
+];
+
+function buildStarRating(name, label) {
+    let html = '<div class="star-rating-label"><span>' + escapeHtml(label) + '</span><span class="star-rating-value" id="' + name + '-val"></span></div>';
+    html += '<div class="star-rating">';
+    for (let i = 5; i >= 1; i--) {
+        html += '<input type="radio" name="' + name + '" id="' + name + '-' + i + '" value="' + i + '">'
+            + '<label for="' + name + '-' + i + '">&#9733;</label>';
+    }
+    html += '</div>';
+    return html;
+}
 
 function openNotesModal(sessionId) {
     notesModalSessionId = sessionId;
+    vocabChips = [];
 
     // Create modal if it doesn't exist
     let modal = document.getElementById('notes-modal');
@@ -1005,39 +1046,192 @@ function openNotesModal(sessionId) {
         modal = document.createElement('div');
         modal.id = 'notes-modal';
         modal.className = 'modal-overlay';
+
+        const grammarOptions = GRAMMAR_TAXONOMY.map(g => '<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>').join('');
+
         modal.innerHTML = `
-            <div class="modal-content">
+            <div class="modal-content" style="max-height:90vh;overflow-y:auto;">
                 <div class="modal-header">
-                    <h3>Session Notes / Notatki z sesji</h3>
+                    <h3>Post-Session Report / Raport po sesji</h3>
                     <button onclick="closeNotesModal()" class="modal-close">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label for="notes-teacher">Private Teacher Notes / Prywatne notatki nauczyciela:</label>
-                        <textarea id="notes-teacher" rows="3" placeholder="Only you can see this..."></textarea>
+
+                    <!-- Skill Observations Section -->
+                    <div class="obs-section">
+                        <div class="obs-section-title">Skill Observations / Obserwacje umiejetnosci</div>
+
+                        <div class="form-group">
+                            <label>Vocabulary Covered / Slownictwo:</label>
+                            <div class="chip-input-wrap" id="vocab-chip-wrap" onclick="document.getElementById('vocab-chip-input').focus()">
+                                <input type="text" id="vocab-chip-input" placeholder="Type a word + Enter...">
+                            </div>
+                            <small style="color:#64748b;font-size:0.75rem;">Press Enter or comma to add a word</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="obs-grammar-focus">Grammar Focus / Gramatyka:</label>
+                            <select id="obs-grammar-focus" class="obs-select">
+                                <option value="">-- Select grammar point --</option>
+                                ${grammarOptions}
+                                <option value="Other">Other / Inne...</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            ${buildStarRating('obs-speaking', 'Speaking / Mowienie')}
+                        </div>
+
+                        <div class="form-group">
+                            ${buildStarRating('obs-grammar-acc', 'Grammar Accuracy / Poprawnosc gramatyczna')}
+                        </div>
+
+                        <div class="form-group">
+                            ${buildStarRating('obs-engagement', 'Student Engagement / Zaangazowanie')}
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="notes-homework">Homework (visible to student) / Praca domowa:</label>
-                        <textarea id="notes-homework" rows="2" placeholder="Homework assignment..."></textarea>
+
+                    <!-- Notes Section -->
+                    <div class="obs-section">
+                        <div class="obs-section-title">Session Notes / Notatki z sesji</div>
+
+                        <div class="form-group">
+                            <label for="notes-homework">Homework (visible to student) / Praca domowa:</label>
+                            <textarea id="notes-homework" rows="2" placeholder="Homework assignment..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="notes-summary">Session Summary (visible to student) / Podsumowanie:</label>
+                            <textarea id="notes-summary" rows="2" placeholder="Brief summary of what was covered..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="notes-teacher">Private Teacher Notes / Prywatne notatki:</label>
+                            <textarea id="notes-teacher" rows="2" placeholder="Only you can see this..."></textarea>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="notes-summary">Session Summary (visible to student) / Podsumowanie:</label>
-                        <textarea id="notes-summary" rows="2" placeholder="Brief summary of what was covered..."></textarea>
-                    </div>
+
                 </div>
                 <div class="modal-footer">
-                    <button onclick="closeNotesModal()" class="btn btn-sm" style="background:#95a5a6;color:white;">Cancel / Anuluj</button>
-                    <button onclick="saveSessionNotes()" class="btn btn-sm btn-primary" id="save-notes-btn">Save / Zapisz</button>
+                    <button onclick="closeNotesModal()" class="btn btn-sm" style="background:rgba(100,116,139,0.2);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);">Cancel / Anuluj</button>
+                    <button onclick="saveSessionNotes()" class="btn btn-sm btn-primary" id="save-notes-btn">Save All / Zapisz</button>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
+
+        // Set up chip input
+        setupVocabChipInput();
+
+        // Set up star rating display values
+        setupStarDisplays();
     }
 
-    // Load existing notes
+    // Reset form state
+    resetNotesForm();
+
+    // Load existing notes and observations
     loadExistingNotes(sessionId);
 
     modal.classList.add('visible');
+}
+
+function setupVocabChipInput() {
+    const input = document.getElementById('vocab-chip-input');
+    if (!input) return;
+
+    input.addEventListener('keydown', function (e) {
+        const val = input.value.trim();
+        if ((e.key === 'Enter' || e.key === ',') && val) {
+            e.preventDefault();
+            addVocabChip(val.replace(/,$/,'').trim());
+            input.value = '';
+        }
+        if (e.key === 'Backspace' && !input.value && vocabChips.length > 0) {
+            removeVocabChip(vocabChips.length - 1);
+        }
+    });
+
+    // Also add on blur if there's a value
+    input.addEventListener('blur', function () {
+        const val = input.value.trim();
+        if (val) {
+            addVocabChip(val);
+            input.value = '';
+        }
+    });
+}
+
+function addVocabChip(word) {
+    if (!word || vocabChips.includes(word.toLowerCase())) return;
+    vocabChips.push(word.toLowerCase());
+    renderVocabChips();
+}
+
+function removeVocabChip(index) {
+    vocabChips.splice(index, 1);
+    renderVocabChips();
+}
+
+function renderVocabChips() {
+    const wrap = document.getElementById('vocab-chip-wrap');
+    const input = document.getElementById('vocab-chip-input');
+    if (!wrap || !input) return;
+
+    // Remove existing chip tags
+    wrap.querySelectorAll('.chip-tag').forEach(el => el.remove());
+
+    // Insert chips before the input
+    vocabChips.forEach(function (word, i) {
+        const chip = document.createElement('span');
+        chip.className = 'chip-tag';
+        chip.innerHTML = escapeHtml(word) + ' <span class="chip-remove" onclick="removeVocabChip(' + i + ')">&times;</span>';
+        wrap.insertBefore(chip, input);
+    });
+}
+
+function setupStarDisplays() {
+    ['obs-speaking', 'obs-grammar-acc', 'obs-engagement'].forEach(function (name) {
+        document.querySelectorAll('input[name="' + name + '"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                const valEl = document.getElementById(name + '-val');
+                if (valEl) valEl.textContent = radio.value + '/5';
+            });
+        });
+    });
+}
+
+function getStarValue(name) {
+    const checked = document.querySelector('input[name="' + name + '"]:checked');
+    return checked ? parseInt(checked.value, 10) : null;
+}
+
+function starToScore(stars) {
+    // Map 1-5 stars to 0-100 scale: 1→20, 2→40, 3→60, 4→80, 5→100
+    if (stars === null || stars === undefined) return null;
+    return stars * 20;
+}
+
+function resetNotesForm() {
+    vocabChips = [];
+    renderVocabChips();
+
+    const vocabInput = document.getElementById('vocab-chip-input');
+    if (vocabInput) vocabInput.value = '';
+
+    const grammarSelect = document.getElementById('obs-grammar-focus');
+    if (grammarSelect) grammarSelect.value = '';
+
+    ['obs-speaking', 'obs-grammar-acc', 'obs-engagement'].forEach(function (name) {
+        document.querySelectorAll('input[name="' + name + '"]').forEach(function (r) { r.checked = false; });
+        const valEl = document.getElementById(name + '-val');
+        if (valEl) valEl.textContent = '';
+    });
+
+    ['notes-teacher', 'notes-homework', 'notes-summary'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
 }
 
 function closeNotesModal() {
@@ -1047,8 +1241,9 @@ function closeNotesModal() {
 }
 
 async function loadExistingNotes(sessionId) {
+    // Load text notes
     try {
-        const resp = await apiFetch(`/api/teacher/sessions/${sessionId}/notes`);
+        const resp = await apiFetch('/api/teacher/sessions/' + sessionId + '/notes');
         if (resp.ok) {
             const data = await resp.json();
             document.getElementById('notes-teacher').value = data.teacher_notes || '';
@@ -1057,6 +1252,51 @@ async function loadExistingNotes(sessionId) {
         }
     } catch (err) {
         console.warn('Could not load existing notes:', err);
+    }
+
+    // Load existing skill observations
+    try {
+        const resp = await apiFetch('/api/sessions/' + sessionId + '/observations');
+        if (resp.ok) {
+            const data = await resp.json();
+            const observations = data.observations || [];
+            observations.forEach(function (obs) {
+                if (obs.skill === 'vocabulary' && obs.notes) {
+                    // Restore vocab chips
+                    obs.notes.split(',').forEach(function (w) {
+                        if (w.trim()) addVocabChip(w.trim());
+                    });
+                } else if (obs.skill === 'grammar' && obs.notes) {
+                    const sel = document.getElementById('obs-grammar-focus');
+                    if (sel) sel.value = obs.notes;
+                } else if (obs.skill === 'speaking' && obs.score !== null) {
+                    setStarFromScore('obs-speaking', obs.score);
+                }
+            });
+            // Grammar accuracy and engagement are stored as 'grammar_accuracy' and 'engagement'
+            observations.forEach(function (obs) {
+                if (obs.skill === 'grammar_accuracy' && obs.score !== null) {
+                    setStarFromScore('obs-grammar-acc', obs.score);
+                } else if (obs.skill === 'engagement' && obs.score !== null) {
+                    setStarFromScore('obs-engagement', obs.score);
+                }
+            });
+        }
+    } catch (err) {
+        console.warn('Could not load existing observations:', err);
+    }
+}
+
+function setStarFromScore(name, score) {
+    // Score is 0-100, convert back to 1-5 stars
+    var stars = Math.round(score / 20);
+    if (stars < 1) stars = 1;
+    if (stars > 5) stars = 5;
+    var radio = document.getElementById(name + '-' + stars);
+    if (radio) {
+        radio.checked = true;
+        var valEl = document.getElementById(name + '-val');
+        if (valEl) valEl.textContent = stars + '/5';
     }
 }
 
@@ -1069,7 +1309,8 @@ async function saveSessionNotes() {
     btn.textContent = 'Saving...';
 
     try {
-        const resp = await apiFetch(`/api/teacher/sessions/${notesModalSessionId}/notes`, {
+        // 1) Save text notes (teacher_notes, homework, summary)
+        const notesResp = await apiFetch('/api/teacher/sessions/' + notesModalSessionId + '/notes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1079,20 +1320,96 @@ async function saveSessionNotes() {
             }),
         });
 
-        if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            alert('Error: ' + (err.detail || 'Could not save notes'));
+        if (!notesResp.ok) {
+            const err = await notesResp.json().catch(function () { return {}; });
+            alert('Error saving notes: ' + (err.detail || 'Unknown error'));
             btn.disabled = false;
             btn.textContent = originalText;
             return;
         }
 
+        // 2) Build skill observations array
+        var observations = [];
+
+        // Vocabulary
+        if (vocabChips.length > 0) {
+            observations.push({
+                skill: 'vocabulary',
+                notes: vocabChips.join(', '),
+            });
+        }
+
+        // Grammar focus
+        var grammarFocus = document.getElementById('obs-grammar-focus').value;
+        if (grammarFocus) {
+            observations.push({
+                skill: 'grammar',
+                notes: grammarFocus,
+            });
+        }
+
+        // Speaking score
+        var speakingStars = getStarValue('obs-speaking');
+        if (speakingStars !== null) {
+            observations.push({
+                skill: 'speaking',
+                score: starToScore(speakingStars),
+            });
+        }
+
+        // Grammar accuracy
+        var grammarAccStars = getStarValue('obs-grammar-acc');
+        if (grammarAccStars !== null) {
+            observations.push({
+                skill: 'grammar',
+                score: starToScore(grammarAccStars),
+                notes: grammarFocus ? grammarFocus + ' (accuracy)' : 'accuracy',
+            });
+        }
+
+        // Engagement
+        var engagementStars = getStarValue('obs-engagement');
+        if (engagementStars !== null) {
+            observations.push({
+                skill: 'listening',  // engagement maps to listening as closest valid skill
+                score: starToScore(engagementStars),
+                notes: 'Student engagement',
+            });
+        }
+
+        // 3) Submit observations if any
+        if (observations.length > 0) {
+            var obsResp = await apiFetch('/api/sessions/' + notesModalSessionId + '/observations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(observations),
+            });
+
+            if (!obsResp.ok) {
+                var obsErr = await obsResp.json().catch(function () { return {}; });
+                alert('Notes saved but observations failed: ' + (obsErr.detail || 'Unknown error'));
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
+        }
+
+        // 4) Mark session attended + completed
+        try {
+            await apiFetch('/api/teacher/sessions/' + notesModalSessionId + '/attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ attended: 1 }),
+            });
+        } catch (e) {
+            console.warn('Attendance update failed (non-blocking):', e);
+        }
+
         btn.textContent = 'Saved!';
-        setTimeout(() => {
+        setTimeout(function () {
             closeNotesModal();
             btn.disabled = false;
             btn.textContent = originalText;
-            // Refresh sessions list
             loadTeacherSessions();
         }, 800);
     } catch (err) {

@@ -19,7 +19,6 @@ class StudentIntake(BaseModel):
     current_level: Optional[EnglishLevel] = None
     goals: list[str] = []
     problem_areas: list[str] = []
-    filler: str = "student"  # student / teacher / parent
     additional_notes: Optional[str] = None
 
 
@@ -30,7 +29,6 @@ class StudentResponse(BaseModel):
     current_level: str
     goals: list[str] = []
     problem_areas: list[str] = []
-    filler: str = "student"
     additional_notes: Optional[str] = None
     created_at: Optional[str] = None
 

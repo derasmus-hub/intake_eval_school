@@ -1,9 +1,9 @@
 import json
+import logging
 import random
 import yaml
-from pathlib import Path
-from openai import AsyncOpenAI
-from app.config import settings
+from app.services.ai_client import ai_chat
+from app.services.prompts import load_prompt, PROMPTS_DIR
 from app.models.assessment import (
     Bracket,
     PlacementQuestion,
@@ -14,7 +14,7 @@ from app.models.assessment import (
     QuestionType,
 )
 
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
+logger = logging.getLogger(__name__)
 
 
 class AssessmentEngine:
@@ -251,19 +251,15 @@ class AssessmentEngine:
             ),
         )
 
-        client = AsyncOpenAI(api_key=settings.api_key)
-
-        response = await client.chat.completions.create(
-            model=settings.model_name,
+        result_text = await ai_chat(
             messages=[
                 {"role": "system", "content": prompt_data["system_prompt"]},
                 {"role": "user", "content": user_message},
             ],
+            use_case="assessment",
             temperature=0.3,
-            response_format={"type": "json_object"},
+            json_mode=True,
         )
-
-        result_text = response.choices[0].message.content
         return json.loads(result_text)
 
 

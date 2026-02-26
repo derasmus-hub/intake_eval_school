@@ -1,15 +1,9 @@
 import json
-import yaml
-from pathlib import Path
-from openai import AsyncOpenAI
-from app.config import settings
+import logging
+from app.services.ai_client import ai_chat
+from app.services.prompts import load_prompt
 
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
-
-
-def load_prompt(name: str) -> dict:
-    with open(PROMPTS_DIR / name, "r") as f:
-        return yaml.safe_load(f)
+logger = logging.getLogger(__name__)
 
 
 async def extract_learning_points(lesson_content: dict, student_level: str) -> list[dict]:
@@ -61,17 +55,23 @@ async def extract_learning_points(lesson_content: dict, student_level: str) -> l
         conversation_text=conversation_text or "No conversation data.",
     )
 
-    client = AsyncOpenAI(api_key=settings.api_key)
+    try:
+        result_text = await ai_chat(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            use_case="cheap",
+            temperature=0.3,
+            json_mode=True,
+        )
+    except Exception as exc:
+        logger.error("AI call failed during learning point extraction: %s", exc)
+        return []
 
-    response = await client.chat.completions.create(
-        model=settings.model_name,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
-        temperature=0.3,
-        response_format={"type": "json_object"},
-    )
-
-    result = json.loads(response.choices[0].message.content)
+    try:
+        result = json.loads(result_text)
+    except json.JSONDecodeError as exc:
+        logger.error("AI returned invalid JSON for learning points: %s", exc)
+        return []
     return result.get("learning_points", [])

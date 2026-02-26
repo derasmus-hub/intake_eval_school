@@ -1,7 +1,27 @@
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: intake_eval_db
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-intake}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-intake_eval}"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-intake}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   intake_eval:
     build: .
     container_name: intake_eval_school
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
     env_file:
@@ -11,15 +31,17 @@ services:
       PORT: "8000"
       DEV_RELOAD: "0"
       IN_DOCKER: "1"
-      # Required secrets (change in production!)
-      JWT_SECRET: "${JWT_SECRET:-docker-dev-jwt-secret-min-32-characters-long}"
-      ADMIN_SECRET: "${ADMIN_SECRET:-docker-dev-admin-secret-16ch}"
+      # Required secrets — must be set in .env (no defaults)
+      JWT_SECRET: "${JWT_SECRET}"
+      ADMIN_SECRET: "${ADMIN_SECRET}"
       # OpenAI API key (required for lesson/quiz generation)
       API_KEY: "${API_KEY:-}"
-      # Database path inside container
+      # PostgreSQL connection (used when DATABASE_URL is set)
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-intake}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-intake_eval}"
+      # SQLite fallback path inside container (used when DATABASE_URL is empty)
       DATABASE_PATH: "/app/data/intake_eval.db"
     volumes:
-      # Persist SQLite database
+      # Persist SQLite database (fallback)
       - intake_eval_data:/app/data
       # Bind mount for development (code changes reflect immediately)
       # Uncomment for dev: - .:/app:ro
@@ -29,7 +51,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      start_period: 10s
 
 volumes:
+  pg_data:
   intake_eval_data:

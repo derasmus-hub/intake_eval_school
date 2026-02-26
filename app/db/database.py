@@ -1,182 +1,321 @@
-import aiosqlite
+"""Database abstraction layer supporting both SQLite (aiosqlite) and PostgreSQL (asyncpg).
+
+Backend is selected via the DATABASE_URL setting:
+  - starts with "postgresql://" → asyncpg
+  - absent / empty             → aiosqlite (uses DATABASE_PATH)
+
+The PostgreSQL wrapper transparently converts:
+  - ? placeholders → $1, $2, … (positional)
+  - cursor.lastrowid → RETURNING id
+  - Row access by column name (dict-like)
+"""
+
+import re
+import logging
+from collections.abc import AsyncGenerator
+from datetime import datetime, date
 from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
+
 from app.config import settings
 
-SCHEMA_PATH = Path(__file__).parent / "schema.sql"
+logger = logging.getLogger(__name__)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-async def get_db() -> aiosqlite.Connection:
+def _is_postgres() -> bool:
+    return settings.database_url.startswith("postgresql://")
+
+
+# ── SQLite helpers (original behaviour) ───────────────────────────────
+
+async def _connect_sqlite():
+    import aiosqlite
     db = await aiosqlite.connect(settings.database_path)
     db.row_factory = aiosqlite.Row
+    await db.execute("PRAGMA foreign_keys = ON")
     return db
 
 
+# ── PostgreSQL wrapper ────────────────────────────────────────────────
+
+_pg_pool = None
+
+
+async def _get_pg_pool():
+    global _pg_pool
+    if _pg_pool is None:
+        import asyncpg
+        _pg_pool = await asyncpg.create_pool(
+            settings.database_url,
+            min_size=2,
+            max_size=10,
+        )
+    return _pg_pool
+
+
+def _sqlite_compat(value):
+    """Convert asyncpg-native types to SQLite-compatible Python types.
+
+    SQLite always returns timestamps as strings; asyncpg returns datetime
+    objects.  Converting here keeps every route working unchanged.
+    """
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+
+class PgRow:
+    """Wraps an asyncpg Record to support dict-style access by column name.
+
+    Supports dict(row), row["col"], row.keys(), row.items(), etc.
+    Mimics sqlite3.Row interface: keys() + __getitem__ enable dict(row).
+    Automatically converts datetime → ISO string to match SQLite behaviour.
+    """
+
+    __slots__ = ("_record",)
+
+    def __init__(self, record):
+        self._record = record
+
+    def __getitem__(self, key):
+        return _sqlite_compat(self._record[key])
+
+    def __contains__(self, key):
+        return key in self._record.keys()
+
+    def __len__(self):
+        return len(self._record)
+
+    def keys(self):
+        return self._record.keys()
+
+    def values(self):
+        return [_sqlite_compat(v) for v in self._record.values()]
+
+    def items(self):
+        return {k: _sqlite_compat(self._record[k]) for k in self._record.keys()}.items()
+
+    def get(self, key, default=None):
+        try:
+            return _sqlite_compat(self._record[key])
+        except (KeyError, IndexError):
+            return default
+
+
+def _to_pg_row(record):
+    """Convert asyncpg Record to PgRow, or None."""
+    if record is None:
+        return None
+    return PgRow(record)
+
+
+# Regex to replace ? placeholders with $1, $2, … while skipping quoted strings
+_PARAM_RE = re.compile(r"'[^']*'|(\?)")
+
+
+def _convert_placeholders(sql: str) -> str:
+    """Replace ? with $1, $2, … for asyncpg, skipping ?s inside string literals."""
+    counter = [0]
+
+    def _replacer(match):
+        if match.group(1) is None:
+            # Matched a quoted string — leave unchanged
+            return match.group(0)
+        counter[0] += 1
+        return f"${counter[0]}"
+
+    return _PARAM_RE.sub(_replacer, sql)
+
+
+# Regex to rewrite SQLite datetime() calls to PostgreSQL equivalents
+# Matches: datetime('now'), datetime('now', '-7 days'), datetime('now', '+1 day'), etc.
+_DATETIME_NOW_RE = re.compile(
+    r"datetime\(\s*'now'\s*\)",
+    re.IGNORECASE,
+)
+_DATETIME_OFFSET_RE = re.compile(
+    r"datetime\(\s*'now'\s*,\s*'([+-]?\d+)\s+(day|days|hour|hours|minute|minutes|second|seconds|month|months|year|years)'\s*\)",
+    re.IGNORECASE,
+)
+
+
+def _convert_datetime_funcs(sql: str) -> str:
+    """Rewrite SQLite datetime('now', ...) to PostgreSQL NOW() + INTERVAL."""
+    # Handle datetime('now', 'offset') first (more specific)
+    def _offset_replacer(match):
+        amount = match.group(1)
+        unit = match.group(2).lower()
+        # Normalize plural
+        if not unit.endswith("s"):
+            unit += "s"
+        return f"(NOW() + INTERVAL '{amount} {unit}')"
+
+    sql = _DATETIME_OFFSET_RE.sub(_offset_replacer, sql)
+    # Handle simple datetime('now')
+    sql = _DATETIME_NOW_RE.sub("NOW()", sql)
+    return sql
+
+_ISO_DT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+
+
+def _coerce_arg_to_datetime(arg):
+    """Try converting an ISO datetime string to a naive datetime for asyncpg."""
+    if isinstance(arg, str) and _ISO_DT_RE.match(arg):
+        try:
+            dt = datetime.fromisoformat(arg)
+            return dt.replace(tzinfo=None)
+        except (ValueError, TypeError):
+            pass
+    return arg
+
+
+def _is_insert(sql: str) -> bool:
+    """Check if an SQL statement is an INSERT (for RETURNING id)."""
+    return sql.lstrip().upper().startswith("INSERT")
+
+
+class PgCursor:
+    """Mimics aiosqlite cursor for the result of execute()."""
+
+    __slots__ = ("_rows", "_lastrowid", "_idx")
+
+    def __init__(self, rows=None, lastrowid=None):
+        self._rows = rows or []
+        self._lastrowid = lastrowid
+        self._idx = 0
+
+    @property
+    def lastrowid(self):
+        return self._lastrowid
+
+    async def fetchone(self):
+        if self._idx < len(self._rows):
+            row = self._rows[self._idx]
+            self._idx += 1
+            return _to_pg_row(row)
+        return None
+
+    async def fetchall(self):
+        remaining = self._rows[self._idx:]
+        self._idx = len(self._rows)
+        return [PgRow(r) for r in remaining]
+
+
+class PgConnection:
+    """Wraps an asyncpg connection to present an aiosqlite-compatible interface.
+
+    Supports:
+      - execute(sql, params) with ? placeholders
+      - cursor.lastrowid via RETURNING id
+      - commit() / close()
+      - fetchone() / fetchall() on returned cursor
+    """
+
+    def __init__(self, conn):
+        self._conn = conn
+        self._tx = None
+
+    async def execute(self, sql: str, params=None):
+        pg_sql = _convert_placeholders(sql)
+        pg_sql = _convert_datetime_funcs(pg_sql)
+        args = tuple(params) if params else ()
+
+        try:
+            return await self._execute_inner(pg_sql, args)
+        except Exception as exc:
+            # asyncpg raises DataError when a string is passed for a timestamp
+            # column.  Retry once with ISO-datetime strings coerced to datetime.
+            if "DataError" in type(exc).__name__ and args:
+                coerced = tuple(_coerce_arg_to_datetime(a) for a in args)
+                if coerced != args:
+                    return await self._execute_inner(pg_sql, coerced)
+            raise
+
+    async def _execute_inner(self, pg_sql: str, args: tuple):
+        if _is_insert(pg_sql):
+            # Append RETURNING id if not already present
+            if "RETURNING" not in pg_sql.upper():
+                pg_sql = pg_sql.rstrip().rstrip(";") + " RETURNING id"
+            row = await self._conn.fetchrow(pg_sql, *args)
+            lastrowid = row["id"] if row else None
+            return PgCursor(rows=[row] if row else [], lastrowid=lastrowid)
+        else:
+            # SELECT or UPDATE/DELETE
+            stripped = pg_sql.lstrip().upper()
+            if stripped.startswith("SELECT") or "RETURNING" in stripped:
+                rows = await self._conn.fetch(pg_sql, *args)
+                return PgCursor(rows=rows)
+            else:
+                await self._conn.execute(pg_sql, *args)
+                return PgCursor()
+
+    async def commit(self):
+        # asyncpg uses explicit transactions; with autocommit semantics,
+        # each statement is auto-committed. No-op here.
+        pass
+
+    async def close(self):
+        # No-op: pool release is handled by get_db() dependency
+        pass
+
+
+# ── Public API ────────────────────────────────────────────────────────
+
+async def get_db() -> AsyncGenerator:
+    """FastAPI dependency that yields a database connection and closes it after the request."""
+    if _is_postgres():
+        pool = await _get_pg_pool()
+        conn = await pool.acquire()
+        pg_conn = PgConnection(conn)
+        try:
+            yield pg_conn
+        finally:
+            await pool.release(conn)
+    else:
+        db = await _connect_sqlite()
+        try:
+            yield db
+        finally:
+            await db.close()
+
+
+def _run_alembic_upgrade():
+    """Run Alembic migrations to head (synchronous — called once at startup)."""
+    alembic_cfg = Config(str(PROJECT_ROOT / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
+
+    if _is_postgres():
+        alembic_cfg.set_main_option("sqlalchemy.url", settings.database_url)
+    else:
+        alembic_cfg.set_main_option(
+            "sqlalchemy.url", f"sqlite:///{settings.database_path}"
+        )
+
+    command.upgrade(alembic_cfg, "head")
+
+
 async def init_db():
-    # Ensure parent directory exists (for Docker volume mounts)
-    db_path = Path(settings.database_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
+    if _is_postgres():
+        logger.info("Using PostgreSQL backend: %s", settings.database_url.split("@")[-1])
+    else:
+        # Ensure parent directory exists (for Docker volume mounts)
+        db_path = Path(settings.database_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info("Using SQLite backend: %s", settings.database_path)
 
-    db = await get_db()
-    try:
-        schema = SCHEMA_PATH.read_text()
-        await db.executescript(schema)
-        await db.commit()
-
-        # Run migrations for existing databases
-        await _run_migrations(db)
-    finally:
-        await db.close()
+    # Alembic handles all schema creation and migrations
+    _run_alembic_upgrade()
 
 
-async def _run_migrations(db):
-    """Add columns to existing tables if they don't exist yet."""
-
-    # Create new tables for availability feature (if not exist)
-    await db.executescript("""
-        CREATE TABLE IF NOT EXISTS teacher_weekly_windows (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            teacher_id INTEGER NOT NULL,
-            day_of_week TEXT NOT NULL,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (teacher_id) REFERENCES students(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS teacher_availability_overrides (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            teacher_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            is_available INTEGER NOT NULL DEFAULT 1,
-            custom_windows TEXT,
-            reason TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (teacher_id) REFERENCES students(id),
-            UNIQUE(teacher_id, date)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_weekly_windows_teacher
-            ON teacher_weekly_windows(teacher_id);
-        CREATE INDEX IF NOT EXISTS idx_overrides_teacher_date
-            ON teacher_availability_overrides(teacher_id, date);
-    """)
-    await db.commit()
-
-    # Create Learning Loop tables (if not exist)
-    await db.executescript("""
-        -- Versioned learning plans for each student
-        CREATE TABLE IF NOT EXISTS learning_plans (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_id INTEGER NOT NULL,
-            version INTEGER NOT NULL DEFAULT 1,
-            plan_json TEXT NOT NULL,
-            summary TEXT,
-            source_intake_id INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (student_id) REFERENCES students(id),
-            FOREIGN KEY (source_intake_id) REFERENCES assessments(id)
-        );
-
-        -- Lesson artifacts generated during sessions
-        CREATE TABLE IF NOT EXISTS lesson_artifacts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER,
-            student_id INTEGER NOT NULL,
-            teacher_id INTEGER,
-            lesson_json TEXT NOT NULL,
-            topics_json TEXT,
-            difficulty TEXT,
-            prompt_version TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (session_id) REFERENCES sessions(id),
-            FOREIGN KEY (student_id) REFERENCES students(id),
-            FOREIGN KEY (teacher_id) REFERENCES students(id)
-        );
-
-        -- Quizzes generated from lesson artifacts
-        CREATE TABLE IF NOT EXISTS next_quizzes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER,
-            student_id INTEGER NOT NULL,
-            quiz_json TEXT NOT NULL,
-            derived_from_lesson_artifact_id INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (session_id) REFERENCES sessions(id),
-            FOREIGN KEY (student_id) REFERENCES students(id),
-            FOREIGN KEY (derived_from_lesson_artifact_id) REFERENCES lesson_artifacts(id)
-        );
-
-        -- Quiz attempts by students
-        CREATE TABLE IF NOT EXISTS quiz_attempts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            quiz_id INTEGER NOT NULL,
-            student_id INTEGER NOT NULL,
-            session_id INTEGER,
-            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            submitted_at TIMESTAMP,
-            score REAL,
-            results_json TEXT,
-            FOREIGN KEY (quiz_id) REFERENCES next_quizzes(id),
-            FOREIGN KEY (student_id) REFERENCES students(id),
-            FOREIGN KEY (session_id) REFERENCES sessions(id)
-        );
-
-        -- Individual question responses within a quiz attempt
-        CREATE TABLE IF NOT EXISTS quiz_attempt_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            attempt_id INTEGER NOT NULL,
-            question_id TEXT NOT NULL,
-            is_correct INTEGER NOT NULL DEFAULT 0,
-            student_answer TEXT,
-            expected_answer TEXT,
-            skill_tag TEXT,
-            time_spent INTEGER,
-            FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(id)
-        );
-
-        -- Indexes for Learning Loop tables
-        CREATE INDEX IF NOT EXISTS idx_learning_plans_student
-            ON learning_plans(student_id);
-        CREATE INDEX IF NOT EXISTS idx_lesson_artifacts_student
-            ON lesson_artifacts(student_id);
-        CREATE INDEX IF NOT EXISTS idx_lesson_artifacts_session
-            ON lesson_artifacts(session_id);
-        CREATE INDEX IF NOT EXISTS idx_next_quizzes_student
-            ON next_quizzes(student_id);
-        CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz
-            ON quiz_attempts(quiz_id);
-        CREATE INDEX IF NOT EXISTS idx_quiz_attempts_student
-            ON quiz_attempts(student_id);
-        CREATE INDEX IF NOT EXISTS idx_quiz_attempt_items_attempt
-            ON quiz_attempt_items(attempt_id);
-    """)
-    await db.commit()
-
-    migrations = [
-        ("students", "role", "ALTER TABLE students ADD COLUMN role TEXT NOT NULL DEFAULT 'student'"),
-        ("students", "email", "ALTER TABLE students ADD COLUMN email TEXT UNIQUE"),
-        ("students", "password_hash", "ALTER TABLE students ADD COLUMN password_hash TEXT"),
-        ("students", "total_xp", "ALTER TABLE students ADD COLUMN total_xp INTEGER DEFAULT 0"),
-        ("students", "xp_level", "ALTER TABLE students ADD COLUMN xp_level INTEGER DEFAULT 1"),
-        ("students", "streak", "ALTER TABLE students ADD COLUMN streak INTEGER DEFAULT 0"),
-        ("students", "freeze_tokens", "ALTER TABLE students ADD COLUMN freeze_tokens INTEGER DEFAULT 0"),
-        ("students", "last_activity_date", "ALTER TABLE students ADD COLUMN last_activity_date TEXT"),
-        ("students", "avatar_id", "ALTER TABLE students ADD COLUMN avatar_id TEXT DEFAULT 'default'"),
-        ("students", "theme_preference", "ALTER TABLE students ADD COLUMN theme_preference TEXT DEFAULT 'light'"),
-        ("students", "display_title", "ALTER TABLE students ADD COLUMN display_title TEXT"),
-        ("achievements", "category", "ALTER TABLE achievements ADD COLUMN category TEXT DEFAULT 'progress'"),
-        ("achievements", "xp_reward", "ALTER TABLE achievements ADD COLUMN xp_reward INTEGER DEFAULT 0"),
-        ("achievements", "icon", "ALTER TABLE achievements ADD COLUMN icon TEXT"),
-        # Session notes columns
-        ("sessions", "teacher_notes", "ALTER TABLE sessions ADD COLUMN teacher_notes TEXT"),
-        ("sessions", "homework", "ALTER TABLE sessions ADD COLUMN homework TEXT"),
-        ("sessions", "session_summary", "ALTER TABLE sessions ADD COLUMN session_summary TEXT"),
-        ("sessions", "updated_at", "ALTER TABLE sessions ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
-    ]
-
-    for table, column, sql in migrations:
-        cursor = await db.execute(f"PRAGMA table_info({table})")
-        columns = [row[1] for row in await cursor.fetchall()]
-        if column not in columns:
-            await db.execute(sql)
-            await db.commit()
+async def close_db():
+    """Shutdown hook — close the connection pool if using PostgreSQL."""
+    global _pg_pool
+    if _pg_pool is not None:
+        await _pg_pool.close()
+        _pg_pool = None

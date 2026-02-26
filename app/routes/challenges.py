@@ -1,9 +1,10 @@
 import json
 import random
-from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, HTTPException, Request
 from app.db.database import get_db
 from app.services.xp_engine import award_xp, XP_AWARDS
+from app.routes.auth import get_current_user, require_student_owner
 
 router = APIRouter(prefix="/api/challenges", tags=["challenges"])
 
@@ -20,169 +21,158 @@ CHALLENGE_TEMPLATES = [
 
 
 @router.get("/{student_id}/today")
-async def get_today_challenges(student_id: int):
-    db = await get_db()
-    try:
-        now = datetime.utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+async def get_today_challenges(student_id: int, request: Request, db=Depends(get_db)):
+    user = await require_student_owner(request, student_id, db)
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        # Check if challenges exist for today
+    # Check if challenges exist for today
+    cursor = await db.execute(
+        "SELECT * FROM daily_challenges WHERE student_id = ? AND expires_at > ? ORDER BY id",
+        (student_id, now.isoformat()),
+    )
+    challenges = await cursor.fetchall()
+
+    if len(challenges) == 0:
+        # Generate 3 new challenges
+        templates = random.sample(CHALLENGE_TEMPLATES, min(3, len(CHALLENGE_TEMPLATES)))
+        expires = (today_start + timedelta(days=1)).isoformat()
+
+        for tmpl in templates:
+            await db.execute(
+                """INSERT INTO daily_challenges
+                   (student_id, challenge_type, title, title_pl, description, target, reward_xp, expires_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (student_id, tmpl["type"], tmpl["title"], tmpl["title_pl"],
+                 tmpl["description"], tmpl["target"], tmpl["reward_xp"], expires),
+            )
+        await db.commit()
+
         cursor = await db.execute(
             "SELECT * FROM daily_challenges WHERE student_id = ? AND expires_at > ? ORDER BY id",
             (student_id, now.isoformat()),
         )
         challenges = await cursor.fetchall()
 
-        if len(challenges) == 0:
-            # Generate 3 new challenges
-            templates = random.sample(CHALLENGE_TEMPLATES, min(3, len(CHALLENGE_TEMPLATES)))
-            expires = (today_start + timedelta(days=1)).isoformat()
+    result = []
+    all_completed = True
+    for ch in challenges:
+        completed = ch["completed"] == 1
+        claimed = ch["claimed"] == 1
+        if not completed:
+            all_completed = False
+        result.append({
+            "id": ch["id"],
+            "type": ch["challenge_type"],
+            "title": ch["title"],
+            "title_pl": ch["title_pl"],
+            "description": ch["description"],
+            "target": ch["target"],
+            "progress": ch["progress"],
+            "reward_xp": ch["reward_xp"],
+            "completed": completed,
+            "claimed": claimed,
+            "expires_at": ch["expires_at"],
+        })
 
-            for tmpl in templates:
-                await db.execute(
-                    """INSERT INTO daily_challenges
-                       (student_id, challenge_type, title, title_pl, description, target, reward_xp, expires_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (student_id, tmpl["type"], tmpl["title"], tmpl["title_pl"],
-                     tmpl["description"], tmpl["target"], tmpl["reward_xp"], expires),
-                )
-            await db.commit()
+    # Check bonus eligibility
+    all_claimed = all(ch["claimed"] == 1 for ch in challenges)
 
-            cursor = await db.execute(
-                "SELECT * FROM daily_challenges WHERE student_id = ? AND expires_at > ? ORDER BY id",
-                (student_id, now.isoformat()),
-            )
-            challenges = await cursor.fetchall()
-
-        result = []
-        all_completed = True
-        for ch in challenges:
-            completed = ch["completed"] == 1
-            claimed = ch["claimed"] == 1
-            if not completed:
-                all_completed = False
-            result.append({
-                "id": ch["id"],
-                "type": ch["challenge_type"],
-                "title": ch["title"],
-                "title_pl": ch["title_pl"],
-                "description": ch["description"],
-                "target": ch["target"],
-                "progress": ch["progress"],
-                "reward_xp": ch["reward_xp"],
-                "completed": completed,
-                "claimed": claimed,
-                "expires_at": ch["expires_at"],
-            })
-
-        # Check bonus eligibility
-        all_claimed = all(ch["claimed"] == 1 for ch in challenges)
-
-        return {
-            "student_id": student_id,
-            "challenges": result,
-            "all_completed": all_completed,
-            "bonus_available": all_completed and not all_claimed,
-            "bonus_xp": XP_AWARDS["daily_challenge_bonus"],
-        }
-    finally:
-        await db.close()
+    return {
+        "student_id": student_id,
+        "challenges": result,
+        "all_completed": all_completed,
+        "bonus_available": all_completed and not all_claimed,
+        "bonus_xp": XP_AWARDS["daily_challenge_bonus"],
+    }
 
 
 @router.post("/{challenge_id}/claim")
-async def claim_challenge(challenge_id: int):
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM daily_challenges WHERE id = ?", (challenge_id,)
-        )
-        challenge = await cursor.fetchone()
-        if not challenge:
-            raise HTTPException(status_code=404, detail="Challenge not found")
+async def claim_challenge(challenge_id: int, request: Request, db=Depends(get_db)):
+    user = await get_current_user(request, db)
+    cursor = await db.execute(
+        "SELECT * FROM daily_challenges WHERE id = ?", (challenge_id,)
+    )
+    challenge = await cursor.fetchone()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
 
-        if not challenge["completed"]:
-            raise HTTPException(status_code=400, detail="Challenge not yet completed")
+    if not challenge["completed"]:
+        raise HTTPException(status_code=400, detail="Challenge not yet completed")
 
-        if challenge["claimed"]:
-            raise HTTPException(status_code=400, detail="Already claimed")
+    if challenge["claimed"]:
+        raise HTTPException(status_code=400, detail="Already claimed")
 
-        student_id = challenge["student_id"]
+    student_id = challenge["student_id"]
+    if user["role"] == "student" and user["id"] != student_id:
+        raise HTTPException(status_code=403, detail="Access denied")
 
-        await db.execute(
-            "UPDATE daily_challenges SET claimed = 1 WHERE id = ?", (challenge_id,)
-        )
-        await db.commit()
+    await db.execute(
+        "UPDATE daily_challenges SET claimed = 1 WHERE id = ?", (challenge_id,)
+    )
+    await db.commit()
 
-        # Award XP
-        xp_result = await award_xp(
-            student_id, challenge["reward_xp"], "daily_challenge", challenge["title"]
-        )
+    # Award XP
+    xp_result = await award_xp(
+        db, student_id, challenge["reward_xp"], "daily_challenge", challenge["title"]
+    )
 
-        return {"claimed": True, "xp_result": xp_result}
-    finally:
-        await db.close()
+    return {"claimed": True, "xp_result": xp_result}
 
 
 @router.post("/{student_id}/claim-bonus")
-async def claim_bonus(student_id: int):
-    db = await get_db()
-    try:
-        now = datetime.utcnow()
-        cursor = await db.execute(
-            "SELECT * FROM daily_challenges WHERE student_id = ? AND expires_at > ?",
-            (student_id, now.isoformat()),
-        )
-        challenges = await cursor.fetchall()
+async def claim_bonus(student_id: int, request: Request, db=Depends(get_db)):
+    user = await require_student_owner(request, student_id, db)
+    now = datetime.now(timezone.utc)
+    cursor = await db.execute(
+        "SELECT * FROM daily_challenges WHERE student_id = ? AND expires_at > ?",
+        (student_id, now.isoformat()),
+    )
+    challenges = await cursor.fetchall()
 
-        if not challenges:
-            raise HTTPException(status_code=404, detail="No challenges found")
+    if not challenges:
+        raise HTTPException(status_code=404, detail="No challenges found")
 
-        all_completed = all(ch["completed"] == 1 for ch in challenges)
-        if not all_completed:
-            raise HTTPException(status_code=400, detail="Not all challenges completed")
+    all_completed = all(ch["completed"] == 1 for ch in challenges)
+    if not all_completed:
+        raise HTTPException(status_code=400, detail="Not all challenges completed")
 
-        all_claimed = all(ch["claimed"] == 1 for ch in challenges)
-        if all_claimed:
-            raise HTTPException(status_code=400, detail="Bonus already claimed")
+    all_claimed = all(ch["claimed"] == 1 for ch in challenges)
+    if all_claimed:
+        raise HTTPException(status_code=400, detail="Bonus already claimed")
 
-        # Mark all as claimed
-        for ch in challenges:
-            if not ch["claimed"]:
-                await db.execute(
-                    "UPDATE daily_challenges SET claimed = 1 WHERE id = ?", (ch["id"],)
-                )
-        await db.commit()
-
-        xp_result = await award_xp(
-            student_id, XP_AWARDS["daily_challenge_bonus"], "daily_challenge_bonus", "All daily challenges completed"
-        )
-
-        return {"bonus_claimed": True, "xp_result": xp_result}
-    finally:
-        await db.close()
-
-
-async def update_challenge_progress(student_id: int, challenge_type: str, increment: int = 1):
-    """Called by other routes when a relevant action happens."""
-    db = await get_db()
-    try:
-        now = datetime.utcnow()
-        cursor = await db.execute(
-            """SELECT * FROM daily_challenges
-               WHERE student_id = ? AND challenge_type = ? AND expires_at > ? AND completed = 0""",
-            (student_id, challenge_type, now.isoformat()),
-        )
-        challenges = await cursor.fetchall()
-
-        for ch in challenges:
-            new_progress = min(ch["progress"] + increment, ch["target"])
-            completed = 1 if new_progress >= ch["target"] else 0
+    # Mark all as claimed
+    for ch in challenges:
+        if not ch["claimed"]:
             await db.execute(
-                "UPDATE daily_challenges SET progress = ?, completed = ? WHERE id = ?",
-                (new_progress, completed, ch["id"]),
+                "UPDATE daily_challenges SET claimed = 1 WHERE id = ?", (ch["id"],)
             )
+    await db.commit()
 
-        if challenges:
-            await db.commit()
-    finally:
-        await db.close()
+    xp_result = await award_xp(
+        db, student_id, XP_AWARDS["daily_challenge_bonus"], "daily_challenge_bonus", "All daily challenges completed"
+    )
+
+    return {"bonus_claimed": True, "xp_result": xp_result}
+
+
+async def update_challenge_progress(db, student_id: int, challenge_type: str, increment: int = 1):
+    """Called by other routes when a relevant action happens."""
+    now = datetime.now(timezone.utc)
+    cursor = await db.execute(
+        """SELECT * FROM daily_challenges
+           WHERE student_id = ? AND challenge_type = ? AND expires_at > ? AND completed = 0""",
+        (student_id, challenge_type, now.isoformat()),
+    )
+    challenges = await cursor.fetchall()
+
+    for ch in challenges:
+        new_progress = min(ch["progress"] + increment, ch["target"])
+        completed = 1 if new_progress >= ch["target"] else 0
+        await db.execute(
+            "UPDATE daily_challenges SET progress = ?, completed = ? WHERE id = ?",
+            (new_progress, completed, ch["id"]),
+        )
+
+    if challenges:
+        await db.commit()

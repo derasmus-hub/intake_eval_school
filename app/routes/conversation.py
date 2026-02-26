@@ -1,15 +1,15 @@
 import json
 import yaml
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
-from openai import AsyncOpenAI
-from app.config import settings
+from app.services.ai_client import ai_chat
 from app.db.database import get_db
 from app.services.xp_engine import award_xp
 from app.routes.challenges import update_challenge_progress
+from app.routes.auth import require_student_owner
 
 router = APIRouter(prefix="/api/conversation", tags=["conversation"])
 
@@ -34,62 +34,56 @@ class ChatMessage(BaseModel):
 
 
 @router.get("/{student_id}/scenarios")
-async def get_scenarios(student_id: int):
-    db = await get_db()
-    try:
-        cursor = await db.execute("SELECT current_level FROM students WHERE id = ?", (student_id,))
-        student = await cursor.fetchone()
-        if not student:
-            raise HTTPException(status_code=404, detail="Student not found")
+async def get_scenarios(student_id: int, request: Request, db=Depends(get_db)):
+    user = await require_student_owner(request, student_id, db)
+    cursor = await db.execute("SELECT current_level FROM users WHERE id = ?", (student_id,))
+    student = await cursor.fetchone()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
 
-        level = student["current_level"] or "A1"
-        prompt_data = _load_prompt()
-        scenarios = prompt_data.get("scenarios", {})
+    level = student["current_level"] or "A1"
+    prompt_data = _load_prompt()
+    scenarios = prompt_data.get("scenarios", {})
 
-        # Map level to scenario bracket
-        if level in ("A1", "A2"):
-            bracket = "beginner"
-        elif level in ("B1", "B2"):
-            bracket = "intermediate"
-        else:
-            bracket = "advanced"
+    # Map level to scenario bracket
+    if level in ("A1", "A2"):
+        bracket = "beginner"
+    elif level in ("B1", "B2"):
+        bracket = "intermediate"
+    else:
+        bracket = "advanced"
 
-        available = scenarios.get(bracket, scenarios.get("beginner", []))
+    available = scenarios.get(bracket, scenarios.get("beginner", []))
 
-        return {
-            "student_id": student_id,
-            "level": level,
-            "bracket": bracket,
-            "scenarios": available,
-        }
-    finally:
-        await db.close()
+    return {
+        "student_id": student_id,
+        "level": level,
+        "bracket": bracket,
+        "scenarios": available,
+    }
 
 
 @router.post("/{student_id}/chat")
-async def chat(student_id: int, msg: ChatMessage):
-    db = await get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM students WHERE id = ?", (student_id,))
-        student = await cursor.fetchone()
-        if not student:
-            raise HTTPException(status_code=404, detail="Student not found")
+async def chat(student_id: int, msg: ChatMessage, request: Request, db=Depends(get_db)):
+    user = await require_student_owner(request, student_id, db)
+    cursor = await db.execute("SELECT * FROM users WHERE id = ?", (student_id,))
+    student = await cursor.fetchone()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
 
-        level = student["current_level"] or "A1"
-        name = student["name"]
+    level = student["current_level"] or "A1"
+    name = student["name"]
 
-        # Get weak areas from latest profile
-        weak_areas = "None identified"
-        cursor = await db.execute(
-            "SELECT priorities FROM learner_profiles WHERE student_id = ? ORDER BY created_at DESC LIMIT 1",
-            (student_id,),
-        )
-        profile = await cursor.fetchone()
-        if profile and profile["priorities"]:
-            priorities = json.loads(profile["priorities"])
-            weak_areas = ", ".join(priorities) if priorities else "None identified"
-    finally:
-        await db.close()
+    # Get weak areas from latest profile
+    weak_areas = "None identified"
+    cursor = await db.execute(
+        "SELECT priorities FROM learner_profiles WHERE student_id = ? ORDER BY created_at DESC LIMIT 1",
+        (student_id,),
+    )
+    profile = await cursor.fetchone()
+    if profile and profile["priorities"]:
+        priorities = json.loads(profile["priorities"])
+        weak_areas = ", ".join(priorities) if priorities else "None identified"
 
     prompt_data = _load_prompt()
     system_prompt = prompt_data["system_prompt"]
@@ -111,24 +105,18 @@ async def chat(student_id: int, msg: ChatMessage):
     messages.append({"role": "user", "content": msg.message})
 
     # Award XP for conversation practice (every message)
-    await award_xp(student_id, 25, "conversation", msg.scenario_title or "Free conversation")
-    await update_challenge_progress(student_id, "practice_conversation")
+    await award_xp(db, student_id, 25, "conversation", msg.scenario_title or "Free conversation")
+    await update_challenge_progress(db, student_id, "practice_conversation")
 
-    client = AsyncOpenAI(api_key=settings.api_key)
+    result_text = await ai_chat(
+        messages=messages,
+        use_case="cheap",
+        temperature=0.8,
+    )
 
     async def generate():
-        stream = await client.chat.completions.create(
-            model=settings.model_name,
-            messages=messages,
-            temperature=0.8,
-            stream=True,
-        )
-
-        async for chunk in stream:
-            if chunk.choices[0].delta.content:
-                data = json.dumps({"content": chunk.choices[0].delta.content})
-                yield f"data: {data}\n\n"
-
+        data = json.dumps({"content": result_text})
+        yield f"data: {data}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")

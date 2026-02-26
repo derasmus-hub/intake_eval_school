@@ -167,20 +167,20 @@ async function addCard(event) {
         });
 
         if (resp.status === 409) {
-            msg.innerHTML = '<p style="color:#e74c3c;">Card already exists for this word.</p>';
+            msg.innerHTML = '<p style="color:#fca5a5;">Card already exists for this word.</p>';
             return;
         }
         if (!resp.ok) {
             const err = await resp.json();
-            msg.innerHTML = '<p style="color:#e74c3c;">Error: ' + (err.detail || 'Unknown') + '</p>';
+            msg.innerHTML = '<p style="color:#fca5a5;">Error: ' + (err.detail || 'Unknown') + '</p>';
             return;
         }
 
-        msg.innerHTML = '<p style="color:#2ecc71;">Card added! / Karta dodana!</p>';
+        msg.innerHTML = '<p style="color:#34d399;">Card added! / Karta dodana!</p>';
         document.getElementById('add-card-form').reset();
         loadStats();
     } catch (err) {
-        msg.innerHTML = '<p style="color:#e74c3c;">Error: ' + err.message + '</p>';
+        msg.innerHTML = '<p style="color:#fca5a5;">Error: ' + err.message + '</p>';
     }
 }
 

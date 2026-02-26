@@ -43,6 +43,20 @@ system_prompt: |
 
   The lesson MUST also include backward-compatible flat fields (objective, polish_explanation, exercises, conversation_prompts, win_activity, difficulty) that mirror the structured content.
 
+  LEARNING DNA ADAPTATION (when provided):
+  - Adjust pacing: "fast" learners get denser content; "slow" learners get more scaffolding and repetition
+  - Target weakest modalities with exercises; use strongest modalities as scaffolding
+  - If "declining_scores" frustration flag is present: use more encouragement, easier warm-up, build confidence first
+  - If "low_engagement_streak" is high: use high-interest topics, gamified exercises, shorter segments
+  - Error patterns from DNA should directly influence which grammar/vocabulary areas to target
+  - Vocabulary retention rate informs how many new words to introduce vs review
+
+  L1 INTERFERENCE INTEGRATION (when provided):
+  - Active interference patterns should be explicitly targeted in controlled practice
+  - Design exercises that contrast Polish and English structures for exhibited patterns
+  - Overcome patterns need only occasional reinforcement, not dedicated practice
+  - Include Polish explanations that address why the interference occurs
+
   ADAPTATION RULES (CRITICAL - you MUST follow these):
   - NEVER repeat the same topic area as the previous lesson unless the student scored below 50% on it
   - If the student scored well (>80%) on an area, that area is MASTERED for now — move to a DIFFERENT area
@@ -107,7 +121,15 @@ system_prompt: |
       "homework": "string or null - homework assignment",
       "next_preview": "string or null - what's coming next",
       "win_activity": "string - confidence-building closing task"
-    }
+    },
+    "skill_tags": [
+      {
+        "type": "grammar|vocabulary|conversation|function|pronunciation",
+        "value": "string - specific topic tag, e.g. present_perfect, travel_vocabulary",
+        "cefr_level": "A1|A2|B1|B2|C1|C2"
+      }
+    ],
+    "teacher_guidance": "string or null - notes for the teacher on how to deliver this lesson based on the student's learning DNA and L1 patterns"
   }
 
 user_template: |

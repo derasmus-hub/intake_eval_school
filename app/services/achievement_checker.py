@@ -1,5 +1,7 @@
 import json
-from app.db.database import get_db
+
+import aiosqlite
+
 from app.services.xp_engine import award_xp
 
 ACHIEVEMENT_DEFINITIONS = [
@@ -39,126 +41,123 @@ ACHIEVEMENT_DEFINITIONS = [
 ]
 
 
-async def check_achievements(student_id: int, context: dict = None) -> list[dict]:
+async def check_achievements(db: aiosqlite.Connection, student_id: int, context: dict = None) -> list[dict]:
     """
     Check and award any newly earned achievements.
     context: optional dict with keys like 'action', 'score', 'hour', etc.
     Returns list of newly earned achievement dicts.
     """
     context = context or {}
-    db = await get_db()
-    try:
-        # Get existing achievements
-        cursor = await db.execute(
-            "SELECT type FROM achievements WHERE student_id = ?", (student_id,)
-        )
-        earned_types = {row["type"] for row in await cursor.fetchall()}
 
-        # Get student stats
-        cursor = await db.execute(
-            "SELECT total_xp, xp_level, streak, current_level FROM students WHERE id = ?",
-            (student_id,),
-        )
-        student = await cursor.fetchone()
-        if not student:
-            return []
+    # Get existing achievements
+    cursor = await db.execute(
+        "SELECT type FROM achievements WHERE student_id = ?", (student_id,)
+    )
+    earned_types = {row["type"] for row in await cursor.fetchall()}
 
-        xp_level = student["xp_level"] or 1
-        streak = student["streak"] or 0
-        current_level = student["current_level"] or "A1"
+    # Get student stats
+    cursor = await db.execute(
+        "SELECT total_xp, xp_level, streak, current_level FROM users WHERE id = ?",
+        (student_id,),
+    )
+    student = await cursor.fetchone()
+    if not student:
+        return []
 
-        # Progress stats
-        cursor = await db.execute(
-            "SELECT COUNT(*) as total, AVG(score) as avg_score, MAX(score) as max_score FROM progress WHERE student_id = ?",
-            (student_id,),
-        )
-        stats = await cursor.fetchone()
-        total_lessons = stats["total"] or 0
-        avg_score = stats["avg_score"] or 0
-        max_score = stats["max_score"] or 0
+    xp_level = student["xp_level"] or 1
+    streak = student["streak"] or 0
+    current_level = student["current_level"] or "A1"
 
-        # Vocab stats
-        cursor = await db.execute(
-            "SELECT COUNT(*) as total FROM vocabulary_cards WHERE student_id = ?",
-            (student_id,),
-        )
-        vocab_total = (await cursor.fetchone())["total"]
+    # Progress stats
+    cursor = await db.execute(
+        "SELECT COUNT(*) as total, AVG(score) as avg_score, MAX(score) as max_score FROM progress WHERE student_id = ?",
+        (student_id,),
+    )
+    stats = await cursor.fetchone()
+    total_lessons = stats["total"] or 0
+    avg_score = stats["avg_score"] or 0
+    max_score = stats["max_score"] or 0
 
-        cursor = await db.execute(
-            "SELECT COUNT(*) as mastered FROM vocabulary_cards WHERE student_id = ? AND repetitions >= 5",
-            (student_id,),
-        )
-        vocab_mastered = (await cursor.fetchone())["mastered"]
+    # Vocab stats
+    cursor = await db.execute(
+        "SELECT COUNT(*) as total FROM vocabulary_cards WHERE student_id = ?",
+        (student_id,),
+    )
+    vocab_total = (await cursor.fetchone())["total"]
 
-        # Recall stats
-        cursor = await db.execute(
-            "SELECT MAX(overall_score) as max_recall FROM recall_sessions WHERE student_id = ? AND status = 'completed'",
-            (student_id,),
-        )
-        recall_row = await cursor.fetchone()
-        max_recall = recall_row["max_recall"] if recall_row else 0
+    cursor = await db.execute(
+        "SELECT COUNT(*) as mastered FROM vocabulary_cards WHERE student_id = ? AND repetitions >= 5",
+        (student_id,),
+    )
+    vocab_mastered = (await cursor.fetchone())["mastered"]
 
-        # Game stats
-        cursor = await db.execute(
-            "SELECT DISTINCT game_type FROM game_scores WHERE student_id = ?",
-            (student_id,),
-        )
-        game_types_played = {row["game_type"] for row in await cursor.fetchall()}
+    # Recall stats
+    cursor = await db.execute(
+        "SELECT MAX(overall_score) as max_recall FROM recall_sessions WHERE student_id = ? AND status = 'completed'",
+        (student_id,),
+    )
+    recall_row = await cursor.fetchone()
+    max_recall = recall_row["max_recall"] if recall_row else 0
 
-        # Check conditions
-        hour = context.get("hour", datetime_hour())
+    # Game stats
+    cursor = await db.execute(
+        "SELECT DISTINCT game_type FROM game_scores WHERE student_id = ?",
+        (student_id,),
+    )
+    game_types_played = {row["game_type"] for row in await cursor.fetchall()}
 
-        conditions = {
-            "first_lesson": total_lessons >= 1,
-            "five_lessons": total_lessons >= 5,
-            "ten_lessons": total_lessons >= 10,
-            "twenty_five_lessons": total_lessons >= 25,
-            "fifty_lessons": total_lessons >= 50,
-            "high_scorer": total_lessons >= 3 and avg_score > 85,
-            "perfect_score": max_score >= 100,
-            "perfect_recall": max_recall and max_recall >= 100,
-            "level_up_b1": current_level in ("B1", "B2", "C1", "C2"),
-            "level_up_b2": current_level in ("B2", "C1", "C2"),
-            "streak_3": streak >= 3,
-            "streak_7": streak >= 7,
-            "streak_14": streak >= 14,
-            "streak_30": streak >= 30,
-            "xp_level_10": xp_level >= 10,
-            "xp_level_25": xp_level >= 25,
-            "vocab_10": vocab_total >= 10,
-            "vocab_50": vocab_total >= 50,
-            "vocab_100": vocab_total >= 100,
-            "vocab_mastered_10": vocab_mastered >= 10,
-            "night_owl": 0 <= hour < 4,
-            "early_bird": 4 <= hour < 6,
-            "game_master": len(game_types_played) >= 4,
-            "comeback_kid": context.get("comeback", False),
-        }
+    # Check conditions
+    hour = context.get("hour", datetime_hour())
 
-        newly_earned = []
-        for ach_def in ACHIEVEMENT_DEFINITIONS:
-            atype = ach_def["type"]
-            if atype in earned_types:
-                continue
-            if conditions.get(atype, False):
-                await db.execute(
-                    "INSERT INTO achievements (student_id, type, title, description, category, xp_reward, icon) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (student_id, atype, ach_def["title"], ach_def["description"],
-                     ach_def["category"], ach_def["xp_reward"], ach_def["icon"]),
-                )
-                newly_earned.append(ach_def)
+    conditions = {
+        "first_lesson": total_lessons >= 1,
+        "five_lessons": total_lessons >= 5,
+        "ten_lessons": total_lessons >= 10,
+        "twenty_five_lessons": total_lessons >= 25,
+        "fifty_lessons": total_lessons >= 50,
+        "high_scorer": total_lessons >= 3 and avg_score > 85,
+        "perfect_score": max_score >= 100,
+        "perfect_recall": max_recall and max_recall >= 100,
+        "level_up_b1": current_level in ("B1", "B2", "C1", "C2"),
+        "level_up_b2": current_level in ("B2", "C1", "C2"),
+        "streak_3": streak >= 3,
+        "streak_7": streak >= 7,
+        "streak_14": streak >= 14,
+        "streak_30": streak >= 30,
+        "xp_level_10": xp_level >= 10,
+        "xp_level_25": xp_level >= 25,
+        "vocab_10": vocab_total >= 10,
+        "vocab_50": vocab_total >= 50,
+        "vocab_100": vocab_total >= 100,
+        "vocab_mastered_10": vocab_mastered >= 10,
+        "night_owl": 0 <= hour < 4,
+        "early_bird": 4 <= hour < 6,
+        "game_master": len(game_types_played) >= 4,
+        "comeback_kid": context.get("comeback", False),
+    }
 
-        if newly_earned:
-            await db.commit()
+    newly_earned = []
+    for ach_def in ACHIEVEMENT_DEFINITIONS:
+        atype = ach_def["type"]
+        if atype in earned_types:
+            continue
+        if conditions.get(atype, False):
+            await db.execute(
+                "INSERT INTO achievements (student_id, type, title, description, category, xp_reward, icon) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (student_id, atype, ach_def["title"], ach_def["description"],
+                 ach_def["category"], ach_def["xp_reward"], ach_def["icon"]),
+            )
+            newly_earned.append(ach_def)
 
-            # Award XP for each achievement
-            for ach in newly_earned:
-                if ach["xp_reward"] > 0:
-                    await award_xp(student_id, ach["xp_reward"], "achievement", ach["title"])
+    if newly_earned:
+        await db.commit()
 
-        return newly_earned
-    finally:
-        await db.close()
+        # Award XP for each achievement
+        for ach in newly_earned:
+            if ach["xp_reward"] > 0:
+                await award_xp(db, student_id, ach["xp_reward"], "achievement", ach["title"])
+
+    return newly_earned
 
 
 def datetime_hour() -> int:

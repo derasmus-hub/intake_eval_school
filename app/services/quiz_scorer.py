@@ -11,7 +11,8 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from app.db.database import get_db
+import aiosqlite
+
 from app.db import learning_loop as ll
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ def score_question(question: Dict[str, Any], student_answer: str) -> Dict[str, A
 
 
 async def score_quiz_attempt(
+    db: aiosqlite.Connection,
     quiz_id: int,
     student_id: int,
     answers: Dict[str, str],
@@ -92,6 +94,7 @@ async def score_quiz_attempt(
     Score a quiz attempt and store results.
 
     Args:
+        db: The database connection
         quiz_id: The quiz ID
         student_id: The student ID
         answers: Dict mapping question_id to student's answer
@@ -100,7 +103,6 @@ async def score_quiz_attempt(
     Returns:
         dict with: attempt_id, score, total_questions, correct_count, items, weak_areas
     """
-    db = await get_db()
     try:
         # Get the quiz
         quiz = await ll.get_quiz(db, quiz_id)
@@ -221,175 +223,158 @@ async def score_quiz_attempt(
     except Exception as e:
         logger.error(f"Error scoring quiz {quiz_id}: {e}")
         return {"success": False, "error": str(e)}
-    finally:
-        await db.close()
 
 
-async def get_attempt_summary(attempt_id: int) -> Optional[Dict[str, Any]]:
+async def get_attempt_summary(db: aiosqlite.Connection, attempt_id: int) -> Optional[Dict[str, Any]]:
     """
     Get a summary of a quiz attempt for teacher review.
 
     Returns:
         dict with: score, weak_areas, mistakes, suggested_focus
     """
-    db = await get_db()
-    try:
-        attempt = await ll.get_quiz_attempt(db, attempt_id)
-        if not attempt:
-            return None
+    attempt = await ll.get_quiz_attempt(db, attempt_id)
+    if not attempt:
+        return None
 
-        items = await ll.get_quiz_attempt_items(db, attempt_id)
+    items = await ll.get_quiz_attempt_items(db, attempt_id)
 
-        # Get quiz details
-        quiz = await ll.get_quiz(db, attempt["quiz_id"])
-        quiz_json = quiz.get("quiz_json", {}) if quiz else {}
-        if isinstance(quiz_json, str):
-            quiz_json = json.loads(quiz_json)
+    # Get quiz details
+    quiz = await ll.get_quiz(db, attempt["quiz_id"])
+    quiz_json = quiz.get("quiz_json", {}) if quiz else {}
+    if isinstance(quiz_json, str):
+        quiz_json = json.loads(quiz_json)
 
-        # Build question lookup
-        questions = {q["id"]: q for q in quiz_json.get("questions", [])}
+    # Build question lookup
+    questions = {q["id"]: q for q in quiz_json.get("questions", [])}
 
-        # Find mistakes
-        mistakes = []
-        for item in items:
-            if not item["is_correct"]:
-                q = questions.get(item["question_id"], {})
-                mistakes.append({
-                    "question": q.get("text", item["question_id"]),
-                    "student_answer": item["student_answer"],
-                    "correct_answer": item["expected_answer"],
-                    "skill_tag": item["skill_tag"],
-                })
+    # Find mistakes
+    mistakes = []
+    for item in items:
+        if not item["is_correct"]:
+            q = questions.get(item["question_id"], {})
+            mistakes.append({
+                "question": q.get("text", item["question_id"]),
+                "student_answer": item["student_answer"],
+                "correct_answer": item["expected_answer"],
+                "skill_tag": item["skill_tag"],
+            })
 
-        # Get results
-        results = attempt.get("results_json", {})
-        if isinstance(results, str):
-            results = json.loads(results)
+    # Get results
+    results = attempt.get("results_json", {})
+    if isinstance(results, str):
+        results = json.loads(results)
 
-        weak_areas = results.get("weak_areas", [])
+    weak_areas = results.get("weak_areas", [])
 
-        # Generate suggested focus points
-        suggested_focus = []
-        for weak in weak_areas:
-            skill = weak.get("skill", "")
-            accuracy = weak.get("accuracy", 0)
+    # Generate suggested focus points
+    suggested_focus = []
+    for weak in weak_areas:
+        skill = weak.get("skill", "")
+        accuracy = weak.get("accuracy", 0)
+        suggested_focus.append(
+            f"{skill.replace('_', ' ').title()}: {accuracy}% accuracy - needs review"
+        )
+
+    # If no weak areas but mistakes, suggest from mistakes
+    if not suggested_focus and mistakes:
+        skill_mistakes = {}
+        for m in mistakes:
+            skill = m.get("skill_tag", "general")
+            if skill not in skill_mistakes:
+                skill_mistakes[skill] = 0
+            skill_mistakes[skill] += 1
+
+        for skill, count in sorted(skill_mistakes.items(), key=lambda x: -x[1]):
             suggested_focus.append(
-                f"{skill.replace('_', ' ').title()}: {accuracy}% accuracy - needs review"
+                f"{skill.replace('_', ' ').title()}: {count} mistake(s)"
             )
 
-        # If no weak areas but mistakes, suggest from mistakes
-        if not suggested_focus and mistakes:
-            skill_mistakes = {}
-            for m in mistakes:
-                skill = m.get("skill_tag", "general")
-                if skill not in skill_mistakes:
-                    skill_mistakes[skill] = 0
-                skill_mistakes[skill] += 1
-
-            for skill, count in sorted(skill_mistakes.items(), key=lambda x: -x[1]):
-                suggested_focus.append(
-                    f"{skill.replace('_', ' ').title()}: {count} mistake(s)"
-                )
-
-        return {
-            "attempt_id": attempt_id,
-            "quiz_id": attempt["quiz_id"],
-            "student_id": attempt["student_id"],
-            "score": attempt.get("score"),
-            "score_percent": round((attempt.get("score") or 0) * 100),
-            "submitted_at": attempt.get("submitted_at"),
-            "total_questions": results.get("total_questions", len(items)),
-            "correct_count": results.get("correct_count", sum(1 for i in items if i["is_correct"])),
-            "weak_areas": weak_areas,
-            "mistakes": mistakes,
-            "suggested_focus": suggested_focus,
-            "skill_breakdown": results.get("skill_breakdown", {}),
-        }
-
-    finally:
-        await db.close()
+    return {
+        "attempt_id": attempt_id,
+        "quiz_id": attempt["quiz_id"],
+        "student_id": attempt["student_id"],
+        "score": attempt.get("score"),
+        "score_percent": round((attempt.get("score") or 0) * 100),
+        "submitted_at": attempt.get("submitted_at"),
+        "total_questions": results.get("total_questions", len(items)),
+        "correct_count": results.get("correct_count", sum(1 for i in items if i["is_correct"])),
+        "weak_areas": weak_areas,
+        "mistakes": mistakes,
+        "suggested_focus": suggested_focus,
+        "skill_breakdown": results.get("skill_breakdown", {}),
+    }
 
 
-async def get_student_quiz_for_session(student_id: int, session_id: int) -> Optional[Dict[str, Any]]:
+async def get_student_quiz_for_session(db: aiosqlite.Connection, student_id: int, session_id: int) -> Optional[Dict[str, Any]]:
     """
     Get the quiz that a student should take for an upcoming session.
     This is typically the quiz from their PREVIOUS confirmed session.
 
     Returns the quiz if found and not yet completed.
     """
-    db = await get_db()
-    try:
-        # Find the most recent quiz for this student that hasn't been attempted
-        cursor = await db.execute(
-            """SELECT nq.*, s.scheduled_at
-               FROM next_quizzes nq
-               JOIN sessions s ON s.id = nq.session_id
-               WHERE nq.student_id = ?
-                 AND NOT EXISTS (
-                     SELECT 1 FROM quiz_attempts qa
-                     WHERE qa.quiz_id = nq.id AND qa.student_id = ?
-                 )
-               ORDER BY nq.created_at DESC
-               LIMIT 1""",
-            (student_id, student_id)
-        )
-        row = await cursor.fetchone()
+    # Find the most recent quiz for this student that hasn't been attempted
+    cursor = await db.execute(
+        """SELECT nq.*, s.scheduled_at
+           FROM next_quizzes nq
+           JOIN sessions s ON s.id = nq.session_id
+           WHERE nq.student_id = ?
+             AND NOT EXISTS (
+                 SELECT 1 FROM quiz_attempts qa
+                 WHERE qa.quiz_id = nq.id AND qa.student_id = ?
+             )
+           ORDER BY nq.created_at DESC
+           LIMIT 1""",
+        (student_id, student_id)
+    )
+    row = await cursor.fetchone()
 
-        if not row:
-            return None
+    if not row:
+        return None
 
-        result = dict(row)
+    result = dict(row)
 
-        # Parse quiz JSON
-        if result.get("quiz_json"):
-            if isinstance(result["quiz_json"], str):
-                result["quiz_json"] = json.loads(result["quiz_json"])
+    # Parse quiz JSON
+    if result.get("quiz_json"):
+        if isinstance(result["quiz_json"], str):
+            result["quiz_json"] = json.loads(result["quiz_json"])
 
-        return result
-
-    finally:
-        await db.close()
+    return result
 
 
-async def get_pending_quizzes_for_student(student_id: int) -> List[Dict[str, Any]]:
+async def get_pending_quizzes_for_student(db: aiosqlite.Connection, student_id: int) -> List[Dict[str, Any]]:
     """
     Get all pending (not yet attempted) quizzes for a student.
     """
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            """SELECT nq.id, nq.session_id, nq.quiz_json, nq.created_at,
-                      s.scheduled_at as session_date
-               FROM next_quizzes nq
-               LEFT JOIN sessions s ON s.id = nq.session_id
-               WHERE nq.student_id = ?
-                 AND NOT EXISTS (
-                     SELECT 1 FROM quiz_attempts qa
-                     WHERE qa.quiz_id = nq.id AND qa.student_id = ?
-                 )
-               ORDER BY nq.created_at DESC""",
-            (student_id, student_id)
-        )
-        rows = await cursor.fetchall()
+    cursor = await db.execute(
+        """SELECT nq.id, nq.session_id, nq.quiz_json, nq.created_at,
+                  s.scheduled_at as session_date
+           FROM next_quizzes nq
+           LEFT JOIN sessions s ON s.id = nq.session_id
+           WHERE nq.student_id = ?
+             AND NOT EXISTS (
+                 SELECT 1 FROM quiz_attempts qa
+                 WHERE qa.quiz_id = nq.id AND qa.student_id = ?
+             )
+           ORDER BY nq.created_at DESC""",
+        (student_id, student_id)
+    )
+    rows = await cursor.fetchall()
 
-        quizzes = []
-        for row in rows:
-            quiz = dict(row)
-            if quiz.get("quiz_json"):
-                if isinstance(quiz["quiz_json"], str):
-                    quiz["quiz_json"] = json.loads(quiz["quiz_json"])
-            quizzes.append({
-                "id": quiz["id"],
-                "session_id": quiz["session_id"],
-                "title": quiz["quiz_json"].get("title", "Pre-Class Quiz"),
-                "title_pl": quiz["quiz_json"].get("title_pl", "Quiz przed lekcją"),
-                "question_count": len(quiz["quiz_json"].get("questions", [])),
-                "estimated_time": quiz["quiz_json"].get("estimated_time_minutes", 5),
-                "session_date": quiz.get("session_date"),
-                "created_at": quiz["created_at"],
-            })
+    quizzes = []
+    for row in rows:
+        quiz = dict(row)
+        if quiz.get("quiz_json"):
+            if isinstance(quiz["quiz_json"], str):
+                quiz["quiz_json"] = json.loads(quiz["quiz_json"])
+        quizzes.append({
+            "id": quiz["id"],
+            "session_id": quiz["session_id"],
+            "title": quiz["quiz_json"].get("title", "Pre-Class Quiz"),
+            "title_pl": quiz["quiz_json"].get("title_pl", "Quiz przed lekcją"),
+            "question_count": len(quiz["quiz_json"].get("questions", [])),
+            "estimated_time": quiz["quiz_json"].get("estimated_time_minutes", 5),
+            "session_date": quiz.get("session_date"),
+            "created_at": quiz["created_at"],
+        })
 
-        return quizzes
-
-    finally:
-        await db.close()
+    return quizzes

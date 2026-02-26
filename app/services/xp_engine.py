@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, date
-from app.db.database import get_db
+
+import aiosqlite
 
 # XP awards for different activities
 XP_AWARDS = {
@@ -83,168 +84,156 @@ def get_xp_for_next_level(level: int, total_xp: int) -> dict:
     }
 
 
-async def award_xp(student_id: int, amount: int, source: str, detail: str = None) -> dict:
-    db = await get_db()
-    try:
-        # Log XP
-        await db.execute(
-            "INSERT INTO xp_log (student_id, amount, source, detail) VALUES (?, ?, ?, ?)",
-            (student_id, amount, source, detail),
-        )
+async def award_xp(db: aiosqlite.Connection, student_id: int, amount: int, source: str, detail: str = None) -> dict:
+    # Log XP
+    await db.execute(
+        "INSERT INTO xp_log (student_id, amount, source, detail) VALUES (?, ?, ?, ?)",
+        (student_id, amount, source, detail),
+    )
 
-        # Update total
+    # Update total
+    await db.execute(
+        "UPDATE users SET total_xp = total_xp + ? WHERE id = ?",
+        (amount, student_id),
+    )
+    await db.commit()
+
+    # Get new total
+    cursor = await db.execute(
+        "SELECT total_xp, xp_level FROM users WHERE id = ?", (student_id,)
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return {"xp_gained": amount, "total_xp": 0, "level": 1, "leveled_up": False}
+
+    total_xp = row["total_xp"]
+    old_level = row["xp_level"]
+    new_level = get_level_for_xp(total_xp)
+
+    leveled_up = new_level > old_level
+    if leveled_up:
         await db.execute(
-            "UPDATE students SET total_xp = total_xp + ? WHERE id = ?",
-            (amount, student_id),
+            "UPDATE users SET xp_level = ? WHERE id = ?",
+            (new_level, student_id),
         )
         await db.commit()
 
-        # Get new total
-        cursor = await db.execute(
-            "SELECT total_xp, xp_level FROM students WHERE id = ?", (student_id,)
-        )
-        row = await cursor.fetchone()
-        if not row:
-            return {"xp_gained": amount, "total_xp": 0, "level": 1, "leveled_up": False}
+    title_pl, title_en = get_title_for_level(new_level)
+    progress = get_xp_for_next_level(new_level, total_xp)
 
-        total_xp = row["total_xp"]
-        old_level = row["xp_level"]
-        new_level = get_level_for_xp(total_xp)
-
-        leveled_up = new_level > old_level
-        if leveled_up:
-            await db.execute(
-                "UPDATE students SET xp_level = ? WHERE id = ?",
-                (new_level, student_id),
-            )
-            await db.commit()
-
-        title_pl, title_en = get_title_for_level(new_level)
-        progress = get_xp_for_next_level(new_level, total_xp)
-
-        return {
-            "xp_gained": amount,
-            "total_xp": total_xp,
-            "level": new_level,
-            "leveled_up": leveled_up,
-            "old_level": old_level if leveled_up else None,
-            "title": title_en,
-            "title_pl": title_pl,
-            "progress": progress,
-        }
-    finally:
-        await db.close()
+    return {
+        "xp_gained": amount,
+        "total_xp": total_xp,
+        "level": new_level,
+        "leveled_up": leveled_up,
+        "old_level": old_level if leveled_up else None,
+        "title": title_en,
+        "title_pl": title_pl,
+        "progress": progress,
+    }
 
 
-async def update_streak(student_id: int) -> dict:
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT streak, last_activity_date, freeze_tokens FROM students WHERE id = ?",
-            (student_id,),
-        )
-        row = await cursor.fetchone()
-        if not row:
-            return {"streak": 0, "streak_bonus": 0}
+async def update_streak(db: aiosqlite.Connection, student_id: int) -> dict:
+    cursor = await db.execute(
+        "SELECT streak, last_activity_date, freeze_tokens FROM users WHERE id = ?",
+        (student_id,),
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return {"streak": 0, "streak_bonus": 0}
 
-        today = date.today().isoformat()
-        last_date = row["last_activity_date"]
-        current_streak = row["streak"] or 0
-        freeze_tokens = row["freeze_tokens"] or 0
+    today = date.today().isoformat()
+    last_date = row["last_activity_date"]
+    current_streak = row["streak"] or 0
+    freeze_tokens = row["freeze_tokens"] or 0
 
-        streak_bonus = 0
+    streak_bonus = 0
 
-        if last_date == today:
-            # Already active today
-            return {"streak": current_streak, "streak_bonus": 0, "already_active": True}
+    if last_date == today:
+        # Already active today
+        return {"streak": current_streak, "streak_bonus": 0, "already_active": True}
 
-        yesterday = date.today().isoformat()
-        from datetime import timedelta
-        yesterday_date = (date.today() - timedelta(days=1)).isoformat()
+    yesterday = date.today().isoformat()
+    from datetime import timedelta
+    yesterday_date = (date.today() - timedelta(days=1)).isoformat()
 
-        if last_date == yesterday_date:
-            # Continuing streak
+    if last_date == yesterday_date:
+        # Continuing streak
+        current_streak += 1
+        streak_bonus = XP_AWARDS["streak_bonus"]
+    elif last_date and last_date < yesterday_date:
+        # Missed a day — check freeze tokens
+        days_missed = (date.today() - date.fromisoformat(last_date)).days - 1
+        if days_missed == 1 and freeze_tokens > 0:
+            # Use freeze token
             current_streak += 1
+            freeze_tokens -= 1
+            await db.execute(
+                "UPDATE users SET freeze_tokens = ? WHERE id = ?",
+                (freeze_tokens, student_id),
+            )
             streak_bonus = XP_AWARDS["streak_bonus"]
-        elif last_date and last_date < yesterday_date:
-            # Missed a day — check freeze tokens
-            days_missed = (date.today() - date.fromisoformat(last_date)).days - 1
-            if days_missed == 1 and freeze_tokens > 0:
-                # Use freeze token
-                current_streak += 1
-                freeze_tokens -= 1
-                await db.execute(
-                    "UPDATE students SET freeze_tokens = ? WHERE id = ?",
-                    (freeze_tokens, student_id),
-                )
-                streak_bonus = XP_AWARDS["streak_bonus"]
-            else:
-                # Streak broken
-                current_streak = 1
         else:
-            # First activity ever
+            # Streak broken
             current_streak = 1
+    else:
+        # First activity ever
+        current_streak = 1
 
-        await db.execute(
-            "UPDATE students SET streak = ?, last_activity_date = ? WHERE id = ?",
-            (current_streak, today, student_id),
-        )
-        await db.commit()
+    await db.execute(
+        "UPDATE users SET streak = ?, last_activity_date = ? WHERE id = ?",
+        (current_streak, today, student_id),
+    )
+    await db.commit()
 
-        # Award streak bonus XP
-        if streak_bonus > 0:
-            await award_xp(student_id, streak_bonus, "streak_bonus", f"Day {current_streak} streak")
+    # Award streak bonus XP
+    if streak_bonus > 0:
+        await award_xp(db, student_id, streak_bonus, "streak_bonus", f"Day {current_streak} streak")
 
-        return {
-            "streak": current_streak,
-            "streak_bonus": streak_bonus,
-            "freeze_tokens_remaining": freeze_tokens,
-        }
-    finally:
-        await db.close()
+    return {
+        "streak": current_streak,
+        "streak_bonus": streak_bonus,
+        "freeze_tokens_remaining": freeze_tokens,
+    }
 
 
-async def get_student_xp_profile(student_id: int) -> dict:
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT total_xp, xp_level, streak, freeze_tokens, last_activity_date, avatar_id, theme_preference, display_title, name FROM students WHERE id = ?",
-            (student_id,),
-        )
-        row = await cursor.fetchone()
-        if not row:
-            return None
+async def get_student_xp_profile(db: aiosqlite.Connection, student_id: int) -> dict:
+    cursor = await db.execute(
+        "SELECT total_xp, xp_level, streak, freeze_tokens, last_activity_date, avatar_id, theme_preference, display_title, name FROM users WHERE id = ?",
+        (student_id,),
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return None
 
-        total_xp = row["total_xp"] or 0
-        level = row["xp_level"] or 1
-        title_pl, title_en = get_title_for_level(level)
-        progress = get_xp_for_next_level(level, total_xp)
+    total_xp = row["total_xp"] or 0
+    level = row["xp_level"] or 1
+    title_pl, title_en = get_title_for_level(level)
+    progress = get_xp_for_next_level(level, total_xp)
 
-        # Recent XP log
-        cursor = await db.execute(
-            "SELECT * FROM xp_log WHERE student_id = ? ORDER BY created_at DESC LIMIT 20",
-            (student_id,),
-        )
-        xp_history = [
-            {"amount": r["amount"], "source": r["source"], "detail": r["detail"], "date": r["created_at"]}
-            for r in await cursor.fetchall()
-        ]
+    # Recent XP log
+    cursor = await db.execute(
+        "SELECT * FROM xp_log WHERE student_id = ? ORDER BY created_at DESC LIMIT 20",
+        (student_id,),
+    )
+    xp_history = [
+        {"amount": r["amount"], "source": r["source"], "detail": r["detail"], "date": r["created_at"]}
+        for r in await cursor.fetchall()
+    ]
 
-        return {
-            "student_id": student_id,
-            "name": row["name"],
-            "total_xp": total_xp,
-            "level": level,
-            "title": title_en,
-            "title_pl": title_pl,
-            "progress": progress,
-            "streak": row["streak"] or 0,
-            "freeze_tokens": row["freeze_tokens"] or 0,
-            "last_activity_date": row["last_activity_date"],
-            "avatar_id": row["avatar_id"] or "default",
-            "theme_preference": row["theme_preference"] or "light",
-            "display_title": row["display_title"],
-            "xp_history": xp_history,
-        }
-    finally:
-        await db.close()
+    return {
+        "student_id": student_id,
+        "name": row["name"],
+        "total_xp": total_xp,
+        "level": level,
+        "title": title_en,
+        "title_pl": title_pl,
+        "progress": progress,
+        "streak": row["streak"] or 0,
+        "freeze_tokens": row["freeze_tokens"] or 0,
+        "last_activity_date": row["last_activity_date"],
+        "avatar_id": row["avatar_id"] or "default",
+        "theme_preference": row["theme_preference"] or "light",
+        "display_title": row["display_title"],
+        "xp_history": xp_history,
+    }

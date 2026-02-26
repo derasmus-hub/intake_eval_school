@@ -7,23 +7,13 @@ Analyzes quiz results and teacher notes to generate updated learning plans.
 import json
 import logging
 from typing import Optional, Dict, Any, List
-from pathlib import Path
-import yaml
 
-from openai import AsyncOpenAI
-from app.config import settings
-from app.db.database import get_db
+from app.services.ai_client import ai_chat
+from app.services.prompts import load_prompt
+import aiosqlite
 from app.db import learning_loop as ll
 
 logger = logging.getLogger(__name__)
-
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
-
-
-def load_prompt(name: str) -> dict:
-    """Load a prompt YAML file."""
-    with open(PROMPTS_DIR / name, "r") as f:
-        return yaml.safe_load(f)
 
 
 async def gather_quiz_analysis(db, student_id: int, limit: int = 10) -> Dict[str, Any]:
@@ -180,6 +170,7 @@ async def gather_session_history(db, student_id: int, limit: int = 5) -> List[Di
 
 
 async def update_learning_plan(
+    db: aiosqlite.Connection,
     student_id: int,
     trigger: str = "quiz_submission",
     session_id: Optional[int] = None
@@ -195,12 +186,11 @@ async def update_learning_plan(
     Returns:
         dict with: success, plan_id, plan (if successful), error (if failed)
     """
-    db = await get_db()
     try:
         # Get student info
         cursor = await db.execute(
             """SELECT id, name, current_level, goals, problem_areas
-               FROM students WHERE id = ?""",
+               FROM users WHERE id = ?""",
             (student_id,)
         )
         student = await cursor.fetchone()
@@ -271,19 +261,16 @@ async def update_learning_plan(
             session_history=history_text,
         )
 
-        # Call OpenAI
-        client = AsyncOpenAI(api_key=settings.api_key)
-        response = await client.chat.completions.create(
-            model=settings.model_name,
+        # Call AI
+        result_text = await ai_chat(
             messages=[
                 {"role": "system", "content": prompt_data["system_prompt"]},
                 {"role": "user", "content": user_message},
             ],
+            use_case="assessment",
             temperature=0.5,
-            response_format={"type": "json_object"},
+            json_mode=True,
         )
-
-        result_text = response.choices[0].message.content
         plan_json = json.loads(result_text)
 
         # Extract summary for storage
@@ -314,64 +301,54 @@ async def update_learning_plan(
     except Exception as e:
         logger.error(f"Error updating plan for student {student_id}: {e}")
         return {"success": False, "error": str(e)}
-    finally:
-        await db.close()
 
 
-async def get_student_learning_plan(student_id: int) -> Optional[Dict[str, Any]]:
+async def get_student_learning_plan(db: aiosqlite.Connection, student_id: int) -> Optional[Dict[str, Any]]:
     """
     Get the latest learning plan for a student.
     """
-    db = await get_db()
-    try:
-        plan = await ll.get_latest_learning_plan(db, student_id)
-        if not plan:
-            return None
+    plan = await ll.get_latest_learning_plan(db, student_id)
+    if not plan:
+        return None
 
-        # Get all versions count
-        plans = await ll.get_learning_plans_by_student(db, student_id)
+    # Get all versions count
+    plans = await ll.get_learning_plans_by_student(db, student_id)
 
-        return {
-            "id": plan["id"],
-            "student_id": plan["student_id"],
-            "version": plan["version"],
-            "total_versions": len(plans),
-            "plan": plan.get("plan_json", {}),
-            "summary": plan.get("summary"),
-            "created_at": plan.get("created_at"),
-        }
-    finally:
-        await db.close()
+    return {
+        "id": plan["id"],
+        "student_id": plan["student_id"],
+        "version": plan["version"],
+        "total_versions": len(plans),
+        "plan": plan.get("plan_json", {}),
+        "summary": plan.get("summary"),
+        "created_at": plan.get("created_at"),
+    }
 
 
-async def get_plan_history(student_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+async def get_plan_history(db: aiosqlite.Connection, student_id: int, limit: int = 10) -> List[Dict[str, Any]]:
     """
     Get learning plan version history for a student.
     """
-    db = await get_db()
-    try:
-        plans = await ll.get_learning_plans_by_student(db, student_id)
+    plans = await ll.get_learning_plans_by_student(db, student_id)
 
-        history = []
-        for plan in plans[:limit]:
-            plan_json = plan.get("plan_json", {})
-            if isinstance(plan_json, str):
-                plan_json = json.loads(plan_json)
+    history = []
+    for plan in plans[:limit]:
+        plan_json = plan.get("plan_json", {})
+        if isinstance(plan_json, str):
+            plan_json = json.loads(plan_json)
 
-            history.append({
-                "id": plan["id"],
-                "version": plan["version"],
-                "summary": plan.get("summary") or plan_json.get("summary"),
-                "created_at": plan.get("created_at"),
-                "goals": plan_json.get("goals_next_2_weeks", []),
-            })
+        history.append({
+            "id": plan["id"],
+            "version": plan["version"],
+            "summary": plan.get("summary") or plan_json.get("summary"),
+            "created_at": plan.get("created_at"),
+            "goals": plan_json.get("goals_next_2_weeks", []),
+        })
 
-        return history
-    finally:
-        await db.close()
+    return history
 
 
-async def on_quiz_submitted(student_id: int, quiz_id: int, attempt_id: int) -> Dict[str, Any]:
+async def on_quiz_submitted(db: aiosqlite.Connection, student_id: int, quiz_id: int, attempt_id: int) -> Dict[str, Any]:
     """
     Hook called after a quiz is submitted.
     Updates the learning plan based on new quiz results.
@@ -382,6 +359,7 @@ async def on_quiz_submitted(student_id: int, quiz_id: int, attempt_id: int) -> D
 
     try:
         result = await update_learning_plan(
+            db,
             student_id=student_id,
             trigger="quiz_submission"
         )
@@ -398,7 +376,7 @@ async def on_quiz_submitted(student_id: int, quiz_id: int, attempt_id: int) -> D
         return {"success": False, "error": str(e)}
 
 
-async def on_teacher_notes_added(student_id: int, session_id: int) -> Dict[str, Any]:
+async def on_teacher_notes_added(db: aiosqlite.Connection, student_id: int, session_id: int) -> Dict[str, Any]:
     """
     Hook called after teacher adds notes to a session.
     Optionally updates the learning plan.
@@ -406,31 +384,27 @@ async def on_teacher_notes_added(student_id: int, session_id: int) -> Dict[str, 
     logger.info(f"Teacher notes added for session {session_id}, student {student_id}")
 
     # Only update if we have significant notes
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            """SELECT teacher_notes, session_summary
-               FROM sessions WHERE id = ?""",
-            (session_id,)
-        )
-        session = await cursor.fetchone()
+    cursor = await db.execute(
+        """SELECT teacher_notes, session_summary
+           FROM sessions WHERE id = ?""",
+        (session_id,)
+    )
+    session = await cursor.fetchone()
 
-        if not session:
-            return {"success": False, "error": "Session not found"}
+    if not session:
+        return {"success": False, "error": "Session not found"}
 
-        notes = session["teacher_notes"] or ""
-        summary = session["session_summary"] or ""
+    notes = session["teacher_notes"] or ""
+    summary = session["session_summary"] or ""
 
-        # Only trigger update if notes are substantial
-        if len(notes) + len(summary) < 50:
-            logger.info(f"Notes too short for plan update, skipping")
-            return {"success": True, "skipped": True, "reason": "notes_too_short"}
-
-    finally:
-        await db.close()
+    # Only trigger update if notes are substantial
+    if len(notes) + len(summary) < 50:
+        logger.info(f"Notes too short for plan update, skipping")
+        return {"success": True, "skipped": True, "reason": "notes_too_short"}
 
     try:
         result = await update_learning_plan(
+            db,
             student_id=student_id,
             trigger="teacher_notes",
             session_id=session_id

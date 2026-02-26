@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def sm2_update(
@@ -39,7 +39,7 @@ def sm2_update(
         interval_days = 1
         # ease_factor stays the same
 
-    next_review = datetime.utcnow() + timedelta(days=interval_days)
+    next_review = datetime.now(timezone.utc) + timedelta(days=interval_days)
 
     return {
         "ease_factor": round(ease_factor, 2),

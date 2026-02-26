@@ -10,7 +10,7 @@ Provides insert/fetch functions for:
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 import aiosqlite
 
@@ -249,7 +249,7 @@ async def submit_quiz_attempt(
         """UPDATE quiz_attempts
            SET submitted_at = ?, score = ?, results_json = ?
            WHERE id = ?""",
-        (datetime.utcnow().isoformat(), score, json.dumps(results_json) if results_json else None, attempt_id)
+        (datetime.now(timezone.utc).isoformat(), score, json.dumps(results_json) if results_json else None, attempt_id)
     )
     await db.commit()
 

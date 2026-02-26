@@ -1,15 +1,9 @@
 import json
-import yaml
-from pathlib import Path
-from openai import AsyncOpenAI
-from app.config import settings
+import logging
+from app.services.ai_client import ai_chat
+from app.services.prompts import load_prompt
 
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
-
-
-def load_prompt(name: str) -> dict:
-    with open(PROMPTS_DIR / name, "r") as f:
-        return yaml.safe_load(f)
+logger = logging.getLogger(__name__)
 
 
 async def generate_learning_path(
@@ -76,17 +70,13 @@ async def generate_learning_path(
         l1_interference=l1_interference,
     )
 
-    client = AsyncOpenAI(api_key=settings.api_key)
-
-    response = await client.chat.completions.create(
-        model=settings.model_name,
+    result_text = await ai_chat(
         messages=[
             {"role": "system", "content": prompt_data["system_prompt"]},
             {"role": "user", "content": user_message},
         ],
+        use_case="lesson",
         temperature=0.5,
-        response_format={"type": "json_object"},
+        json_mode=True,
     )
-
-    result_text = response.choices[0].message.content
     return json.loads(result_text)

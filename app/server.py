@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
 from pathlib import Path
 from contextlib import asynccontextmanager
-from app.db.database import init_db
+from app.db.database import init_db, close_db
 from app.middleware.auth import AuthMiddleware
 from app.config import settings
 
@@ -40,6 +40,7 @@ else:
 async def lifespan(app: FastAPI):
     await init_db()
     yield
+    await close_db()
 
 
 app = FastAPI(title="Intake Eval School", lifespan=lifespan)
@@ -74,6 +75,10 @@ from app.routes.admin import router as admin_router
 from app.routes.availability import router as availability_router
 from app.routes.quiz import router as quiz_router
 from app.routes.learning_plan import router as learning_plan_router
+from app.routes.dashboard import router as dashboard_router
+from app.routes.writing import router as writing_router
+from app.routes.organizations import router as organizations_router
+from app.routes.intelligence import router as intelligence_router
 
 app.include_router(auth_router)
 app.include_router(intake_router)
@@ -95,6 +100,10 @@ app.include_router(admin_router)
 app.include_router(availability_router)
 app.include_router(quiz_router)
 app.include_router(learning_plan_router)
+app.include_router(dashboard_router)
+app.include_router(writing_router)
+app.include_router(organizations_router)
+app.include_router(intelligence_router)
 
 
 @app.get("/health")

@@ -1,37 +1,34 @@
 import json
-from app.db.database import get_db
+
+import aiosqlite
 
 
-async def get_skill_averages(student_id: int) -> dict[str, float]:
+async def get_skill_averages(db: aiosqlite.Connection, student_id: int) -> dict[str, float]:
     """Calculate running averages per skill area from progress history."""
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM progress WHERE student_id = ? ORDER BY completed_at",
-            (student_id,),
-        )
-        rows = await cursor.fetchall()
+    cursor = await db.execute(
+        "SELECT * FROM progress WHERE student_id = ? ORDER BY completed_at",
+        (student_id,),
+    )
+    rows = await cursor.fetchall()
 
-        skill_scores: dict[str, list[float]] = {}
+    skill_scores: dict[str, list[float]] = {}
 
-        for row in rows:
-            score = row["score"] or 0.0
-            areas_improved = json.loads(row["areas_improved"]) if row["areas_improved"] else []
-            areas_struggling = json.loads(row["areas_struggling"]) if row["areas_struggling"] else []
+    for row in rows:
+        score = row["score"] or 0.0
+        areas_improved = json.loads(row["areas_improved"]) if row["areas_improved"] else []
+        areas_struggling = json.loads(row["areas_struggling"]) if row["areas_struggling"] else []
 
-            for area in areas_improved:
-                skill_scores.setdefault(area, []).append(score)
-            for area in areas_struggling:
-                skill_scores.setdefault(area, []).append(max(0, score - 20))
+        for area in areas_improved:
+            skill_scores.setdefault(area, []).append(score)
+        for area in areas_struggling:
+            skill_scores.setdefault(area, []).append(max(0, score - 20))
 
-        return {k: round(sum(v) / len(v), 1) for k, v in skill_scores.items()}
-    finally:
-        await db.close()
+    return {k: round(sum(v) / len(v), 1) for k, v in skill_scores.items()}
 
 
-async def get_next_focus_area(student_id: int, priority_areas: list[str]) -> str | None:
+async def get_next_focus_area(db: aiosqlite.Connection, student_id: int, priority_areas: list[str]) -> str | None:
     """Determine which area to focus on next based on progress data."""
-    averages = await get_skill_averages(student_id)
+    averages = await get_skill_averages(db, student_id)
 
     if not averages:
         return priority_areas[0] if priority_areas else None

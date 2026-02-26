@@ -2,3 +2,6 @@
 *.db
 __pycache__/
 *.pyc
+*.bak
+*.bak_*
+=0.39.0

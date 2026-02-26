@@ -1,16 +1,10 @@
 import json
-import yaml
-from pathlib import Path
-from openai import AsyncOpenAI
-from app.config import settings
+import logging
+from app.services.ai_client import ai_chat
+from app.services.prompts import load_prompt
 from app.models.student import LearnerProfile
 
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
-
-
-def load_prompt(name: str) -> dict:
-    with open(PROMPTS_DIR / name, "r") as f:
-        return yaml.safe_load(f)
+logger = logging.getLogger(__name__)
 
 
 async def run_diagnostic(student_id: int, intake_data: dict) -> LearnerProfile:
@@ -31,19 +25,15 @@ async def run_diagnostic(student_id: int, intake_data: dict) -> LearnerProfile:
         polish_struggles=yaml.dump(polish_struggles, default_flow_style=False, allow_unicode=True),
     )
 
-    client = AsyncOpenAI(api_key=settings.api_key)
-
-    response = await client.chat.completions.create(
-        model=settings.model_name,
+    result_text = await ai_chat(
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ],
+        use_case="assessment",
         temperature=0.3,
-        response_format={"type": "json_object"},
+        json_mode=True,
     )
-
-    result_text = response.choices[0].message.content
     result = json.loads(result_text)
 
     return LearnerProfile(

@@ -165,7 +165,7 @@
             const filtered = filter === 'all' ? achievements : achievements.filter(a => a.category === filter);
 
             if (filtered.length === 0) {
-                grid.innerHTML = '<p style="color:#7f8c8d;">No achievements yet in this category.<br><em>Brak osiagniec w tej kategorii.</em></p>';
+                grid.innerHTML = '<p style="color:#64748b;">No achievements yet in this category.<br><em>Brak osiagniec w tej kategorii.</em></p>';
                 return;
             }
 
@@ -207,7 +207,7 @@
         function renderXpHistory(history) {
             const container = document.getElementById('xp-history');
             if (history.length === 0) {
-                container.innerHTML = '<p style="color:#7f8c8d;">No XP earned yet.</p>';
+                container.innerHTML = '<p style="color:#64748b;">No XP earned yet.</p>';
                 return;
             }
             container.innerHTML = history.map(h => `
