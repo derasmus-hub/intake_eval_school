@@ -2250,6 +2250,22 @@ footer a:hover {
 .calendar-cell.cal-past .cal-day-num {
     color: #374151;
 }
+.calendar-cell.cal-disabled {
+    background: rgba(15, 23, 42, 0.15);
+    pointer-events: none;
+}
+.calendar-cell.cal-disabled .cal-day-num {
+    color: #374151;
+}
+
+/* Empty state message */
+.calendar-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #94a3b8;
+    font-size: 1rem;
+}
 
 /* Today highlight */
 .calendar-cell.cal-today {

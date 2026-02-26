@@ -1,8 +1,9 @@
 /**
  * teacher-calendar.js — Student view of teacher availability
  *
- * Shows a monthly calendar with available/unavailable days.
- * Clicking a day shows the available time windows.
+ * State-driven rendering: the calendar grid is ONLY built when all
+ * preconditions are met (authenticated, teacher selected, data loaded).
+ * Otherwise a contextual empty-state message is rendered instead.
  */
 (function () {
     'use strict';
@@ -18,27 +19,57 @@
         'Lipiec', 'Sierpien', 'Wrzesien', 'Pazdziernik', 'Listopad', 'Grudzien'
     ];
 
-    // State
+    // ── State ────────────────────────────────────────────────────────
     let teachers = [];
     let selectedTeacherId = null;
     let currentYear = new Date().getFullYear();
     let currentMonth = new Date().getMonth(); // 0-indexed
-    let availabilityData = {}; // { "2026-02-10": { windows: [...], available: true }, ... }
+    let availabilityData = null; // null = not loaded, {} = loaded but empty
     let selectedDate = null;
 
-    // ── Initialization ─────────────────────────────────────────────────
+    // ── Initialization ───────────────────────────────────────────────
 
     async function init() {
+        setMonthNavEnabled(false);
         await loadTeachers();
         renderCalendar();
     }
 
-    // ── API Calls ──────────────────────────────────────────────────────
+    // ── State helpers ────────────────────────────────────────────────
+
+    function hasAvailabilityData() {
+        return availabilityData &&
+               !availabilityData.detail &&
+               Object.keys(availabilityData).length > 0;
+    }
+
+    function setMonthNavEnabled(enabled) {
+        var prev = document.getElementById('prev-month-btn');
+        var next = document.getElementById('next-month-btn');
+        if (prev) prev.disabled = !enabled;
+        if (next) next.disabled = !enabled;
+    }
+
+    function renderEmptyState(message) {
+        var grid = document.getElementById('calendar-grid');
+        var titleEl = document.getElementById('calendar-month-title');
+        titleEl.textContent = MONTHS[currentMonth] + ' ' + currentYear + ' / ' + MONTHS_PL[currentMonth];
+        grid.innerHTML = '<div class="calendar-empty">' + escapeHtml(message) + '</div>';
+    }
+
+    // ── API Calls ────────────────────────────────────────────────────
 
     async function loadTeachers() {
         const select = document.getElementById('teacher-select');
         try {
             const resp = await apiFetch('/api/students/teachers');
+
+            // 401 — not authenticated; apiFetch redirects, but guard here too
+            if (resp.status === 401) {
+                renderEmptyState('Please log in to view availability. / Zaloguj sie, aby zobaczyc dostepnosc.');
+                return;
+            }
+
             if (!resp.ok) {
                 select.innerHTML = '<option value="">Error loading teachers</option>';
                 return;
@@ -52,7 +83,7 @@
             }
 
             select.innerHTML = '<option value="">-- Select a teacher / Wybierz nauczyciela --</option>' +
-                teachers.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+                teachers.map(t => '<option value="' + t.id + '">' + escapeHtml(t.name) + '</option>').join('');
 
             // Auto-select if only one teacher
             if (teachers.length === 1) {
@@ -70,37 +101,48 @@
         if (!teacherId) return;
 
         showLoading(true);
-        availabilityData = {};
+        availabilityData = null;
 
         // Calculate date range for the month view (include prev/next month overflow)
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
 
-        // Extend range to cover calendar grid (might show days from prev/next month)
         const startDate = new Date(firstDay);
-        startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
+        startDate.setDate(startDate.getDate() - firstDay.getDay());
         const endDate = new Date(lastDay);
-        endDate.setDate(endDate.getDate() + (6 - lastDay.getDay())); // End on Saturday
+        endDate.setDate(endDate.getDate() + (6 - lastDay.getDay()));
 
         const fromStr = formatDateISO(startDate);
         const toStr = formatDateISO(endDate);
 
         try {
             const resp = await apiFetch(
-                `/api/students/teacher-availability?teacher_id=${teacherId}&from=${fromStr}&to=${toStr}`
+                '/api/students/teacher-availability?teacher_id=' + teacherId + '&from=' + fromStr + '&to=' + toStr
             );
 
+            // 401 — stop, do not parse, render auth message
+            if (resp.status === 401) {
+                showLoading(false);
+                availabilityData = null;
+                renderEmptyState('Please log in to view availability. / Zaloguj sie, aby zobaczyc dostepnosc.');
+                setMonthNavEnabled(false);
+                return;
+            }
+
             if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
+                var err = await resp.json().catch(function () { return {}; });
                 showError(err.detail || 'Could not load availability');
                 showLoading(false);
+                availabilityData = null;
+                renderCalendar();
                 return;
             }
 
             const data = await resp.json();
 
             // Build lookup by date
-            (data.days || []).forEach(day => {
+            availabilityData = {};
+            (data.days || []).forEach(function (day) {
                 availabilityData[day.date] = {
                     windows: day.windows || [],
                     available: day.available
@@ -114,26 +156,35 @@
             console.error('[teacher-calendar] Load availability error:', err);
             showError('Error loading availability: ' + err.message);
             showLoading(false);
+            availabilityData = null;
+            renderCalendar();
         }
     }
 
-    // ── Event Handlers ─────────────────────────────────────────────────
+    // ── Event Handlers ───────────────────────────────────────────────
 
     function onTeacherChange() {
         const select = document.getElementById('teacher-select');
         selectedTeacherId = select.value ? parseInt(select.value, 10) : null;
         selectedDate = null;
+        availabilityData = null;
         renderDayDetails();
 
+        // Hide book CTA on teacher change
+        var bookCta = document.getElementById('book-cta-section');
+        if (bookCta) bookCta.style.display = 'none';
+
         if (selectedTeacherId) {
+            setMonthNavEnabled(true);
             loadAvailability(selectedTeacherId, currentYear, currentMonth);
         } else {
-            availabilityData = {};
+            setMonthNavEnabled(false);
             renderCalendar();
         }
     }
 
     function prevMonth() {
+        if (!selectedTeacherId) return;
         currentMonth--;
         if (currentMonth < 0) {
             currentMonth = 11;
@@ -141,15 +192,11 @@
         }
         selectedDate = null;
         renderDayDetails();
-
-        if (selectedTeacherId) {
-            loadAvailability(selectedTeacherId, currentYear, currentMonth);
-        } else {
-            renderCalendar();
-        }
+        loadAvailability(selectedTeacherId, currentYear, currentMonth);
     }
 
     function nextMonth() {
+        if (!selectedTeacherId) return;
         currentMonth++;
         if (currentMonth > 11) {
             currentMonth = 0;
@@ -157,22 +204,16 @@
         }
         selectedDate = null;
         renderDayDetails();
-
-        if (selectedTeacherId) {
-            loadAvailability(selectedTeacherId, currentYear, currentMonth);
-        } else {
-            renderCalendar();
-        }
+        loadAvailability(selectedTeacherId, currentYear, currentMonth);
     }
 
     function selectDay(dateStr) {
         selectedDate = dateStr;
-        renderCalendar(); // Re-render to show selection
+        renderCalendar();
         renderDayDetails();
 
-        // Show book CTA if day has availability
-        const dayData = availabilityData[dateStr];
-        const bookCta = document.getElementById('book-cta-section');
+        var dayData = availabilityData ? availabilityData[dateStr] : null;
+        var bookCta = document.getElementById('book-cta-section');
         if (dayData && dayData.available && dayData.windows.length > 0) {
             bookCta.style.display = 'block';
         } else {
@@ -180,68 +221,79 @@
         }
     }
 
-    // ── Rendering ──────────────────────────────────────────────────────
+    // ── Rendering ────────────────────────────────────────────────────
 
     function renderCalendar() {
-        const grid = document.getElementById('calendar-grid');
-        const titleEl = document.getElementById('calendar-month-title');
+        var grid = document.getElementById('calendar-grid');
+        var titleEl = document.getElementById('calendar-month-title');
 
-        // Update title
-        titleEl.textContent = `${MONTHS[currentMonth]} ${currentYear} / ${MONTHS_PL[currentMonth]}`;
+        // Always update the month title
+        titleEl.textContent = MONTHS[currentMonth] + ' ' + currentYear + ' / ' + MONTHS_PL[currentMonth];
 
-        // Build calendar grid
-        let html = '';
+        // ── Guard 1: no teacher selected ──
+        if (!selectedTeacherId) {
+            grid.innerHTML = '<div class="calendar-empty">Select a teacher to view availability. / Wybierz nauczyciela, aby zobaczyc dostepnosc.</div>';
+            setMonthNavEnabled(false);
+            return;
+        }
+
+        // ── Guard 2: data not yet loaded (loading in progress) ──
+        if (availabilityData === null) {
+            return; // loading spinner is already visible
+        }
+
+        // ── Guard 3: data loaded but empty or errored ──
+        if (availabilityData.detail || Object.keys(availabilityData).length === 0) {
+            grid.innerHTML = '<div class="calendar-empty">This teacher has no available hours set. / Ten nauczyciel nie ma ustalonych godzin.</div>';
+            return;
+        }
+
+        // ── All guards passed — build the grid ──
+        var html = '';
 
         // Day headers
         html += '<div class="calendar-row calendar-header-row">';
-        for (let i = 0; i < 7; i++) {
-            html += `<div class="calendar-header-cell">${DAYS_SHORT[i]}<br><span class="meta">${DAYS_PL[i]}</span></div>`;
+        for (var i = 0; i < 7; i++) {
+            html += '<div class="calendar-header-cell">' + DAYS_SHORT[i] + '<br><span class="meta">' + DAYS_PL[i] + '</span></div>';
         }
         html += '</div>';
 
-        // Get first day of month and total days
-        const firstDay = new Date(currentYear, currentMonth, 1);
-        const lastDay = new Date(currentYear, currentMonth + 1, 0);
-        const totalDays = lastDay.getDate();
-        const startDayOfWeek = firstDay.getDay(); // 0 = Sunday
+        // Month geometry
+        var firstDay = new Date(currentYear, currentMonth, 1);
+        var lastDay = new Date(currentYear, currentMonth + 1, 0);
+        var totalDays = lastDay.getDate();
+        var startDayOfWeek = firstDay.getDay();
 
-        // Calculate previous month days to show
-        const prevMonthLastDay = new Date(currentYear, currentMonth, 0).getDate();
-        const prevMonthStart = prevMonthLastDay - startDayOfWeek + 1;
+        var prevMonthLastDay = new Date(currentYear, currentMonth, 0).getDate();
+        var prevMonthStart = prevMonthLastDay - startDayOfWeek + 1;
 
-        // Build weeks
-        const today = new Date();
+        var today = new Date();
         today.setHours(0, 0, 0, 0);
-        const todayStr = formatDateISO(today);
+        var todayStr = formatDateISO(today);
 
-        let dayCounter = 1;
-        let nextMonthCounter = 1;
+        var dayCounter = 1;
+        var nextMonthCounter = 1;
 
-        for (let week = 0; week < 6; week++) {
+        for (var week = 0; week < 6; week++) {
             html += '<div class="calendar-row">';
 
-            for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
-                const cellIndex = week * 7 + dayOfWeek;
+            for (var dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+                var cellIndex = week * 7 + dayOfWeek;
 
                 if (cellIndex < startDayOfWeek) {
-                    // Previous month
-                    const prevDay = prevMonthStart + cellIndex;
-                    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-                    const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-                    const dateStr = formatDateISO(new Date(prevYear, prevMonth, prevDay));
-                    html += renderDayCell(prevDay, dateStr, 'other-month');
+                    var prevDay = prevMonthStart + cellIndex;
+                    var pm = currentMonth === 0 ? 11 : currentMonth - 1;
+                    var py = currentMonth === 0 ? currentYear - 1 : currentYear;
+                    html += renderDayCell(prevDay, formatDateISO(new Date(py, pm, prevDay)), 'other-month', false, true);
                 } else if (dayCounter > totalDays) {
-                    // Next month
-                    const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
-                    const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
-                    const dateStr = formatDateISO(new Date(nextYear, nextMonth, nextMonthCounter));
-                    html += renderDayCell(nextMonthCounter, dateStr, 'other-month');
+                    var nm = currentMonth === 11 ? 0 : currentMonth + 1;
+                    var ny = currentMonth === 11 ? currentYear + 1 : currentYear;
+                    html += renderDayCell(nextMonthCounter, formatDateISO(new Date(ny, nm, nextMonthCounter)), 'other-month', false, false);
                     nextMonthCounter++;
                 } else {
-                    // Current month
-                    const dateStr = formatDateISO(new Date(currentYear, currentMonth, dayCounter));
-                    const isToday = dateStr === todayStr;
-                    const isPast = new Date(dateStr) < today;
+                    var dateStr = formatDateISO(new Date(currentYear, currentMonth, dayCounter));
+                    var isToday = dateStr === todayStr;
+                    var isPast = new Date(dateStr) < today;
                     html += renderDayCell(dayCounter, dateStr, 'current-month', isToday, isPast);
                     dayCounter++;
                 }
@@ -249,7 +301,6 @@
 
             html += '</div>';
 
-            // Stop if we've rendered all days and completed the week
             if (dayCounter > totalDays && (week + 1) * 7 >= startDayOfWeek + totalDays) {
                 break;
             }
@@ -258,15 +309,15 @@
         grid.innerHTML = html;
     }
 
-    function renderDayCell(dayNum, dateStr, monthClass, isToday = false, isPast = false) {
-        const dayData = availabilityData[dateStr];
-        let statusClass = 'cal-unknown';
-        let clickable = false;
+    function renderDayCell(dayNum, dateStr, monthClass, isToday, isPast) {
+        var dayData = availabilityData ? availabilityData[dateStr] : null;
+        var statusClass = 'cal-disabled';
+        var clickable = false;
 
-        if (selectedTeacherId && dayData !== undefined) {
+        if (dayData !== undefined && dayData !== null) {
             if (isPast) {
                 statusClass = 'cal-past';
-            } else if (dayData.available && dayData.windows.length > 0) {
+            } else if (dayData.available && dayData.windows && dayData.windows.length > 0) {
                 statusClass = 'cal-available';
                 clickable = true;
             } else if (!dayData.available) {
@@ -278,119 +329,108 @@
             statusClass = 'cal-past';
         }
 
-        const selectedClass = dateStr === selectedDate ? 'cal-selected' : '';
-        const todayClass = isToday ? 'cal-today' : '';
-        const onClick = clickable ? `onclick="selectDay('${dateStr}')"` : '';
-        const cursorStyle = clickable ? 'cursor:pointer;' : '';
+        var selectedClass = dateStr === selectedDate ? 'cal-selected' : '';
+        var todayClass = isToday ? 'cal-today' : '';
+        var onClick = clickable ? ' onclick="selectDay(\'' + dateStr + '\')"' : '';
+        var cursorStyle = clickable ? 'cursor:pointer;' : '';
 
-        // Show window count for available days
-        let windowInfo = '';
-        if (dayData && dayData.available && dayData.windows.length > 0 && !isPast) {
-            windowInfo = `<span class="cal-window-count">${dayData.windows.length} slot${dayData.windows.length > 1 ? 's' : ''}</span>`;
+        var windowInfo = '';
+        if (clickable && dayData && dayData.windows.length > 0) {
+            windowInfo = '<span class="cal-window-count">' + dayData.windows.length + ' slot' + (dayData.windows.length > 1 ? 's' : '') + '</span>';
         }
 
-        return `<div class="calendar-cell ${monthClass} ${statusClass} ${selectedClass} ${todayClass}" ${onClick} style="${cursorStyle}">
-            <span class="cal-day-num">${dayNum}</span>
-            ${windowInfo}
-        </div>`;
+        return '<div class="calendar-cell ' + monthClass + ' ' + statusClass + ' ' + selectedClass + ' ' + todayClass + '"' + onClick + ' style="' + cursorStyle + '">' +
+            '<span class="cal-day-num">' + dayNum + '</span>' +
+            windowInfo +
+        '</div>';
     }
 
     function renderDayDetails() {
-        const titleEl = document.getElementById('day-details-title');
-        const contentEl = document.getElementById('day-details-content');
+        var titleEl = document.getElementById('day-details-title');
+        var contentEl = document.getElementById('day-details-content');
 
         if (!selectedDate) {
             titleEl.textContent = 'Select a Day / Wybierz dzien';
-            contentEl.innerHTML = `
-                <p class="meta">Click on a day in the calendar above to see available time slots.</p>
-                <p class="meta"><em>Kliknij dzien w kalendarzu powyzej, aby zobaczyc dostepne godziny.</em></p>
-            `;
+            contentEl.innerHTML =
+                '<p class="meta">Click on a day in the calendar above to see available time slots.</p>' +
+                '<p class="meta"><em>Kliknij dzien w kalendarzu powyzej, aby zobaczyc dostepne godziny.</em></p>';
             return;
         }
 
-        const dateObj = new Date(selectedDate + 'T00:00:00');
-        const dateStr = dateObj.toLocaleDateString('en-GB', {
+        var dateObj = new Date(selectedDate + 'T00:00:00');
+        var dateDisplay = dateObj.toLocaleDateString('en-GB', {
             weekday: 'long',
             day: 'numeric',
             month: 'long',
             year: 'numeric'
         });
 
-        titleEl.textContent = dateStr;
+        titleEl.textContent = dateDisplay;
 
-        const dayData = availabilityData[selectedDate];
+        var dayData = availabilityData ? availabilityData[selectedDate] : null;
 
         if (!dayData) {
-            contentEl.innerHTML = `
-                <p class="meta">No availability data for this day.</p>
-                <p class="meta"><em>Brak danych o dostepnosci na ten dzien.</em></p>
-            `;
+            contentEl.innerHTML =
+                '<p class="meta">No availability data for this day.</p>' +
+                '<p class="meta"><em>Brak danych o dostepnosci na ten dzien.</em></p>';
             return;
         }
 
         if (!dayData.available) {
-            contentEl.innerHTML = `
-                <div class="day-detail-unavailable">
-                    <p><strong>Teacher is not available on this day.</strong></p>
-                    <p><em>Nauczyciel nie jest dostepny w tym dniu.</em></p>
-                </div>
-            `;
+            contentEl.innerHTML =
+                '<div class="day-detail-unavailable">' +
+                    '<p><strong>Teacher is not available on this day.</strong></p>' +
+                    '<p><em>Nauczyciel nie jest dostepny w tym dniu.</em></p>' +
+                '</div>';
             return;
         }
 
-        if (dayData.windows.length === 0) {
-            contentEl.innerHTML = `
-                <div class="day-detail-no-hours">
-                    <p><strong>No hours set for this day.</strong></p>
-                    <p><em>Brak ustalonych godzin na ten dzien.</em></p>
-                </div>
-            `;
+        if (!dayData.windows || dayData.windows.length === 0) {
+            contentEl.innerHTML =
+                '<div class="day-detail-no-hours">' +
+                    '<p><strong>No hours set for this day.</strong></p>' +
+                    '<p><em>Brak ustalonych godzin na ten dzien.</em></p>' +
+                '</div>';
             return;
         }
 
-        // Show available time slots
-        let html = `
-            <div class="day-detail-available">
-                <p><strong>Available time slots / Dostepne godziny:</strong></p>
-                <div class="time-slots-grid">
-        `;
+        var html =
+            '<div class="day-detail-available">' +
+                '<p><strong>Available time slots / Dostepne godziny:</strong></p>' +
+                '<div class="time-slots-grid">';
 
-        dayData.windows.forEach(w => {
-            const start = w.start;
-            const end = w.end;
-            html += `
-                <div class="time-slot">
-                    <span class="time-slot-time">${start} - ${end}</span>
-                    <span class="time-slot-label">Available / Dostepny</span>
-                </div>
-            `;
+        dayData.windows.forEach(function (w) {
+            html +=
+                '<div class="time-slot">' +
+                    '<span class="time-slot-time">' + escapeHtml(w.start) + ' - ' + escapeHtml(w.end) + '</span>' +
+                    '<span class="time-slot-label">Available / Dostepny</span>' +
+                '</div>';
         });
 
-        html += `
-                </div>
-                <p class="meta" style="margin-top:1rem;">
-                    To book a session at one of these times, go back to your dashboard and submit a request.
-                    <br><em>Aby zarezerwowac sesje, wroc do panelu i wyslij prosbe.</em>
-                </p>
-            </div>
-        `;
+        html +=
+                '</div>' +
+                '<p class="meta" style="margin-top:1rem;">' +
+                    'To book a session at one of these times, go back to your dashboard and submit a request.' +
+                    '<br><em>Aby zarezerwowac sesje, wroc do panelu i wyslij prosbe.</em>' +
+                '</p>' +
+            '</div>';
 
         contentEl.innerHTML = html;
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────
 
     function formatDateISO(date) {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+        var year = date.getFullYear();
+        var month = String(date.getMonth() + 1).padStart(2, '0');
+        var day = String(date.getDate()).padStart(2, '0');
+        return year + '-' + month + '-' + day;
     }
 
     function showLoading(show) {
-        const loadingEl = document.getElementById('calendar-loading');
-        const gridEl = document.getElementById('calendar-grid');
-        const errorEl = document.getElementById('calendar-error');
+        var loadingEl = document.getElementById('calendar-loading');
+        var gridEl = document.getElementById('calendar-grid');
+        var errorEl = document.getElementById('calendar-error');
 
         if (show) {
             loadingEl.classList.remove('hidden');
@@ -403,18 +443,18 @@
     }
 
     function showError(message) {
-        const errorEl = document.getElementById('calendar-error');
-        errorEl.innerHTML = `<p>${escapeHtml(message)}</p>`;
+        var errorEl = document.getElementById('calendar-error');
+        errorEl.innerHTML = '<p>' + escapeHtml(message) + '</p>';
         errorEl.classList.remove('hidden');
     }
 
     function escapeHtml(text) {
-        const div = document.createElement('div');
+        var div = document.createElement('div');
         div.textContent = text || '';
         return div.innerHTML;
     }
 
-    // ── Expose Functions Globally ──────────────────────────────────────
+    // ── Expose Functions Globally ────────────────────────────────────
 
     window.onTeacherChange = onTeacherChange;
     window.prevMonth = prevMonth;
