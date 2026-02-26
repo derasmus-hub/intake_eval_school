@@ -2151,6 +2151,8 @@ footer a:hover {
 
 /* 7-column calendar grid */
 .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
     overflow: hidden;
@@ -2158,8 +2160,7 @@ footer a:hover {
 }
 
 .calendar-row {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    display: contents;
 }
 
 .calendar-header-row {
