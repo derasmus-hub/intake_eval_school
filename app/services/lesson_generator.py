@@ -121,7 +121,9 @@ async def generate_lesson(
 
         challenge = learning_dna.get("optimal_challenge_level", {})
         if challenge.get("recommendation"):
-            dna_sections.append(f"Challenge Recommendation: {challenge['recommendation']} (avg score: {challenge.get('current_avg_score', '?')})")
+            recent = challenge.get('recent_avg_score', challenge.get('current_avg_score', '?'))
+            lifetime = challenge.get('current_avg_score', '?')
+            dna_sections.append(f"Challenge Recommendation: {challenge['recommendation']} (recent avg: {recent}, lifetime avg: {lifetime})")
 
         frustration = learning_dna.get("frustration_indicators", {})
         if frustration.get("declining_scores"):

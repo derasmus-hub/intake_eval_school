@@ -292,6 +292,26 @@ async def complete_lesson(lesson_id: int, request: Request, db=Depends(get_db)):
     )
     await db.commit()
 
+    # Safety net: auto-create a progress entry if one doesn't exist yet.
+    # The primary path is POST /api/progress/{lesson_id}, but if the frontend
+    # only calls complete_lesson, we still need a progress row so the
+    # reassessment trigger (which counts progress rows) fires correctly.
+    cursor = await db.execute(
+        "SELECT id FROM progress WHERE lesson_id = ? AND student_id = ?",
+        (lesson_id, student_id),
+    )
+    if not await cursor.fetchone():
+        logger.info(
+            "Auto-creating progress entry for lesson %d / student %d (no prior submission)",
+            lesson_id, student_id,
+        )
+        await db.execute(
+            """INSERT INTO progress (student_id, lesson_id, score, notes, areas_improved, areas_struggling)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (student_id, lesson_id, None, "Auto-created on lesson completion", "[]", "[]"),
+        )
+        await db.commit()
+
     # Get student level
     cursor = await db.execute(
         "SELECT current_level FROM users WHERE id = ?", (student_id,)

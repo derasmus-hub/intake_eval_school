@@ -16,7 +16,8 @@ async def get_skill_difficulty_profile(student_id: int, db: aiosqlite.Connection
     otherwise          → "maintain"   (appropriate level)
 
     Returns dict like {"grammar_rule": "simplify", "vocabulary": "challenge", ...}
-    Only includes skills with at least 3 data points.
+    Only includes skills with at least 2 data points (lowered from 3
+    so that adaptation kicks in earlier for new students).
     """
     cursor = await db.execute(
         """SELECT point_type, AVG(ease_factor) as avg_ease, COUNT(*) as count
@@ -29,7 +30,7 @@ async def get_skill_difficulty_profile(student_id: int, db: aiosqlite.Connection
     profile = {}
     for row in await cursor.fetchall():
         # Require a minimum sample size to avoid noisy signals
-        if row["count"] < 3:
+        if row["count"] < 2:
             continue
         avg_ease = row["avg_ease"]
         if avg_ease < 1.8:

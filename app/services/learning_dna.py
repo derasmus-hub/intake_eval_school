@@ -354,7 +354,14 @@ def _compute_engagement_patterns(progress_rows, game_rows, challenge_rows, recal
 def _compute_optimal_challenge_level(progress_rows) -> dict:
     """
     Find the difficulty band where scores cluster in the 70-85% flow zone.
+
+    Uses a WINDOWED average (last 8 scores) for the recommendation so that
+    early poor performance doesn't permanently drag down the signal once a
+    student has genuinely improved.  The lifetime average is still reported
+    for context.
     """
+    WINDOW_SIZE = 8  # Recent-score window for recommendation
+
     scores = [row["score"] for row in progress_rows if row["score"] is not None]
 
     if not scores:
@@ -362,10 +369,15 @@ def _compute_optimal_challenge_level(progress_rows) -> dict:
             "sweet_spot_min": None,
             "sweet_spot_max": None,
             "current_avg_score": None,
+            "recent_avg_score": None,
             "recommendation": "maintain",
         }
 
-    current_avg = sum(scores) / len(scores)
+    lifetime_avg = sum(scores) / len(scores)
+
+    # Windowed average: use only the most recent WINDOW_SIZE scores
+    recent_scores = scores[-WINDOW_SIZE:]
+    recent_avg = sum(recent_scores) / len(recent_scores)
 
     # Find scores in the flow zone (70-85)
     flow_scores = [s for s in scores if 70 <= s <= 85]
@@ -377,10 +389,10 @@ def _compute_optimal_challenge_level(progress_rows) -> dict:
         sweet_spot_min = 70.0
         sweet_spot_max = 85.0
 
-    # Recommendation based on where current average sits
-    if current_avg > 85:
+    # Recommendation based on the RECENT windowed average, not lifetime
+    if recent_avg > 85:
         recommendation = "increase_difficulty"
-    elif current_avg < 70:
+    elif recent_avg < 70:
         recommendation = "decrease_difficulty"
     else:
         recommendation = "maintain"
@@ -388,7 +400,8 @@ def _compute_optimal_challenge_level(progress_rows) -> dict:
     return {
         "sweet_spot_min": sweet_spot_min,
         "sweet_spot_max": sweet_spot_max,
-        "current_avg_score": round(current_avg, 2),
+        "current_avg_score": round(lifetime_avg, 2),
+        "recent_avg_score": round(recent_avg, 2),
         "recommendation": recommendation,
     }
 

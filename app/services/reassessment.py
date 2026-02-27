@@ -197,8 +197,10 @@ Based on this data, determine the student's current CEFR level as JSON."""
     )
 
     # Update current_level if the reassessment is confident enough
+    # Threshold lowered from 0.7 to 0.6 so strong-performing students
+    # are not stuck at a level when the AI is "moderately confident"
     confidence = result.get("confidence_score", 0)
-    if confidence >= 0.7 and determined_level != current_level:
+    if confidence >= 0.6 and determined_level != current_level:
         await db.execute(
             "UPDATE users SET current_level = ? WHERE id = ?",
             (determined_level, student_id),
