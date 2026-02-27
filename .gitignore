@@ -5,3 +5,12 @@ __pycache__/
 *.bak
 *.bak_*
 =0.39.0
+
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+
+.venv/
+
