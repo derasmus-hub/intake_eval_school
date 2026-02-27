@@ -1,0 +1,23 @@
+{
+  "grammar": {
+    "articles": ["articles_definite", "articles_indefinite", "articles_zero"],
+    "present_simple": ["present_simple_affirmative", "present_simple_negative", "present_simple_questions"],
+    "present_continuous": ["present_continuous_form", "present_continuous_usage"],
+    "past_simple": ["past_simple_regular", "past_simple_irregular"],
+    "sentence_structure": ["word_order", "subject_verb_agreement"]
+  },
+  "vocabulary": {
+    "business": ["business_basic", "business_meetings", "business_email"],
+    "everyday": ["everyday_objects", "everyday_actions", "everyday_descriptions"],
+    "academic": ["academic_basic"]
+  },
+  "pronunciation": {
+    "th_sounds": ["th_voiced", "th_voiceless"],
+    "w_v_distinction": ["w_v_minimal_pairs"],
+    "word_stress": ["word_stress_patterns"]
+  },
+  "conversation": {
+    "basic_descriptions": ["describe_people", "describe_places"],
+    "business_contexts": ["business_intro", "business_phone"]
+  }
+}

@@ -76,6 +76,12 @@ user_template: |
   PREVIOUS PLAN (if exists):
   {previous_plan_summary}
 
+  INSTRUCTIONS FOR USING PREVIOUS PLAN:
+  - Check if previous goals were achieved based on quiz scores
+  - If a weakness from the previous plan is still below 60%, KEEP it as high priority
+  - If a weakness improved above 70%, move it to maintenance and add a new focus area
+  - Never drop more than 1 focus area per update (continuity matters)
+
   RECENT QUIZ RESULTS:
   Total Quizzes Analyzed: {quiz_count}
   Overall Average Score: {average_score}%

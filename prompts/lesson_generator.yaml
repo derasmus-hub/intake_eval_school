@@ -66,6 +66,21 @@ system_prompt: |
   - Always include at least one exercise type the student tends to succeed at
   - Look at "previous_lesson_topics" to avoid repeating the same topic
 
+  SKILL TAG RULES (CRITICAL):
+  You MUST use ONLY these skill tags in the skill_tags array. Do NOT invent new ones.
+
+  Grammar tags: articles_definite, articles_indefinite, articles_zero,
+  present_simple_affirmative, present_simple_negative, present_simple_questions,
+  present_continuous_form, present_continuous_usage, past_simple_regular,
+  past_simple_irregular, word_order, subject_verb_agreement
+
+  Vocabulary tags: business_basic, business_meetings, business_email,
+  everyday_objects, everyday_actions, everyday_descriptions, academic_basic
+
+  Pronunciation tags: th_voiced, th_voiceless, w_v_minimal_pairs, word_stress_patterns
+
+  Conversation tags: describe_people, describe_places, business_intro, business_phone
+
   You MUST respond with valid JSON in this exact format:
   {
     "objective": "string - clear learning goal",

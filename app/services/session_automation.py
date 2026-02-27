@@ -14,6 +14,10 @@ from typing import Optional, Dict, Any
 
 from app.services.ai_client import ai_chat
 from app.services.prompts import load_prompt
+from app.services.lesson_generator import generate_lesson
+from app.services.difficulty_engine import get_skill_difficulty_profile
+from app.services.learning_dna import get_or_compute_dna
+from app.services.l1_interference import get_student_interference_profile
 import aiosqlite
 from app.db import learning_loop as ll
 
@@ -101,35 +105,72 @@ async def get_student_context(db, student_id: int) -> Dict[str, Any]:
                     entry[field] = []
         context["progress_history"].append(entry)
 
-    # Get previous lesson topics from lesson_artifacts
+    # Get previous lesson skill tags from lessons table (structured, not free-form)
     cursor = await db.execute(
-        """SELECT topics_json, lesson_json FROM lesson_artifacts
+        """SELECT lst.tag_type, lst.tag_value, lst.cefr_level
+           FROM lesson_skill_tags lst
+           JOIN lessons l ON l.id = lst.lesson_id
+           WHERE l.student_id = ?
+           ORDER BY l.created_at DESC
+           LIMIT 10""",
+        (student_id,)
+    )
+    tag_rows = await cursor.fetchall()
+    context["previous_skill_tags"] = [
+        f"{r['tag_type']}\u2192{r['tag_value']} ({r['cefr_level']})"
+        for r in tag_rows
+    ]
+
+    # Also extract skill tags from lesson_artifacts.topics_json (session automation path)
+    cursor = await db.execute(
+        """SELECT topics_json FROM lesson_artifacts
            WHERE student_id = ?
            ORDER BY created_at DESC
            LIMIT 5""",
         (student_id,)
     )
-    artifact_rows = await cursor.fetchall()
-    for row in artifact_rows:
+    for row in await cursor.fetchall():
         topics = row["topics_json"]
         if topics:
             try:
                 topics_dict = json.loads(topics) if isinstance(topics, str) else topics
                 if isinstance(topics_dict, dict):
-                    for topic_list in topics_dict.values():
+                    for key, topic_list in topics_dict.items():
                         if isinstance(topic_list, list):
-                            context["previous_topics"].extend(topic_list)
-            except:
+                            for t in topic_list:
+                                if t and t not in context["previous_skill_tags"]:
+                                    context["previous_skill_tags"].append(t)
+            except Exception:
                 pass
-        # Also extract from lesson_json objective
+
+    # Get previous lessons with quiz scores (structured topic + performance data)
+    cursor = await db.execute(
+        """SELECT la.id, la.lesson_json, la.topics_json,
+                  qa.score as quiz_score
+           FROM lesson_artifacts la
+           LEFT JOIN next_quizzes nq ON nq.derived_from_lesson_artifact_id = la.id
+           LEFT JOIN quiz_attempts qa ON qa.quiz_id = nq.id
+           WHERE la.student_id = ?
+           ORDER BY la.created_at DESC
+           LIMIT 5""",
+        (student_id,)
+    )
+    artifact_rows = await cursor.fetchall()
+    lessons_with_scores = []
+    for row in artifact_rows:
         lesson = row["lesson_json"]
         if lesson:
             try:
                 lesson_dict = json.loads(lesson) if isinstance(lesson, str) else lesson
-                if lesson_dict.get("objective"):
-                    context["previous_topics"].append(lesson_dict["objective"][:50])
-            except:
-                pass
+                objective = lesson_dict.get("objective", "Unknown")[:80]
+            except Exception:
+                objective = "Unknown"
+        else:
+            objective = "Unknown"
+        score = f"{int(row['quiz_score'] * 100)}%" if row["quiz_score"] is not None else "not yet tested"
+        lessons_with_scores.append(f"- {objective} \u2192 Quiz: {score}")
+        context["previous_topics"].append(objective)
+    context["previous_lessons_with_scores"] = "\n".join(lessons_with_scores) or "No previous lessons."
 
     # Get weak areas from recent quiz attempts
     cursor = await db.execute(
@@ -168,6 +209,68 @@ async def get_student_context(db, student_id: int) -> Dict[str, Any]:
     context["session_count"] = count_row["cnt"] if count_row else 0
 
     return context
+
+
+async def get_teacher_observations(db, student_id: int) -> list[dict]:
+    """Get recent teacher skill observations."""
+    cursor = await db.execute(
+        """SELECT skill, score, cefr_level, notes
+           FROM session_skill_observations
+           WHERE student_id = ?
+           ORDER BY created_at DESC
+           LIMIT 10""",
+        (student_id,)
+    )
+    rows = await cursor.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def get_cefr_history(db, student_id: int) -> list[dict]:
+    """Get CEFR level progression."""
+    cursor = await db.execute(
+        """SELECT level, grammar_level, vocabulary_level, reading_level,
+                  speaking_level, writing_level, recorded_at
+           FROM cefr_history
+           WHERE student_id = ?
+           ORDER BY recorded_at DESC
+           LIMIT 5""",
+        (student_id,)
+    )
+    rows = await cursor.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def get_vocabulary_due(db, student_id: int) -> list[str]:
+    """Get vocabulary cards due for review (SM-2 schedule)."""
+    cursor = await db.execute(
+        """SELECT word FROM vocabulary_cards
+           WHERE student_id = ? AND next_review <= datetime('now')
+           ORDER BY ease_factor ASC
+           LIMIT 10""",
+        (student_id,)
+    )
+    rows = await cursor.fetchall()
+    return [r["word"] for r in rows]
+
+
+async def get_teacher_notes_for_lesson(db, student_id: int) -> str | None:
+    """Get the most recent teacher session notes."""
+    cursor = await db.execute(
+        """SELECT session_summary, teacher_notes FROM sessions
+           WHERE student_id = ? AND teacher_notes IS NOT NULL
+           ORDER BY scheduled_at DESC
+           LIMIT 1""",
+        (student_id,)
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return None
+    parts = []
+    if row["session_summary"]:
+        parts.append(row["session_summary"])
+    if row["teacher_notes"]:
+        parts.append(f"Teacher notes: {row['teacher_notes']}")
+    return "\n".join(parts) if parts else None
 
 
 async def lesson_artifact_exists_for_session(db, session_id: int) -> bool:
@@ -224,45 +327,46 @@ async def build_lesson_for_session(db: aiosqlite.Connection, session_id: int) ->
         if not profile.get("profile_summary") and context.get("learning_plan"):
             profile["profile_summary"] = json.dumps(context["learning_plan"])[:500]
 
-        # Load lesson prompt
-        lesson_prompt = load_prompt("lesson_generator.yaml")
-        system_prompt = lesson_prompt["system_prompt"]
-        user_template = lesson_prompt["user_template"]
-
-        # Prepare template variables
-        progress_text = "No previous lessons." if not context["progress_history"] else json.dumps(context["progress_history"][:5], indent=2)
-        topics_text = "None (first lesson)." if not context["previous_topics"] else ", ".join(list(set(context["previous_topics"]))[:10])
-        recall_text = "None." if not context["quiz_weak_areas"] else ", ".join(context["quiz_weak_areas"])
-
         session_number = context["session_count"] + 1
 
-        user_message = user_template.format(
+        # Gather rich context for the full lesson generator
+        teacher_obs = await get_teacher_observations(db, student_id)
+        cefr_hist = await get_cefr_history(db, student_id)
+        vocab_due = await get_vocabulary_due(db, student_id)
+        teacher_notes = await get_teacher_notes_for_lesson(db, student_id)
+        learning_dna = await get_or_compute_dna(student_id, db)
+        l1_profile = await get_student_interference_profile(student_id, db)
+        difficulty_profile = await get_skill_difficulty_profile(student_id, db)
+
+        # Call the full lesson generator with ALL context
+        lesson = await generate_lesson(
+            student_id=student_id,
+            profile=profile,
+            progress_history=context["progress_history"],
             session_number=session_number,
             current_level=current_level,
-            profile_summary=profile.get("profile_summary", "No profile summary available"),
-            priorities=", ".join(profile.get("priorities", [])),
-            gaps=json.dumps(profile.get("gaps", []), indent=2),
-            progress_history=progress_text,
-            previous_topics=topics_text,
-            recall_weak_areas=recall_text,
+            previous_topics=context["previous_topics"] or None,
+            recall_weak_areas=context["quiz_weak_areas"] or None,
+            teacher_session_notes=teacher_notes,
+            teacher_skill_observations=teacher_obs or None,
+            cefr_history=cefr_hist or None,
+            vocabulary_due_for_review=vocab_due or None,
+            difficulty_profile=difficulty_profile or None,
+            learning_dna=learning_dna or None,
+            l1_interference_profile=l1_profile or None,
         )
 
-        # Call AI
-        result_text = await ai_chat(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            use_case="lesson",
-            temperature=0.7,
-            json_mode=True,
-        )
-        lesson_json = json.loads(result_text)
+        # Serialize LessonContent to JSON dict
+        lesson_json = lesson.model_dump()
+        # Ensure difficulty is present at top level
+        if not lesson_json.get("difficulty"):
+            lesson_json["difficulty"] = current_level
 
         # Extract topics for indexing
         topics_json = {}
-        if lesson_json.get("presentation", {}).get("topic"):
-            topics_json["main_topic"] = [lesson_json["presentation"]["topic"]]
+        presentation = lesson_json.get("presentation") or {}
+        if isinstance(presentation, dict) and presentation.get("topic"):
+            topics_json["main_topic"] = [presentation["topic"]]
         if lesson_json.get("objective"):
             topics_json["objective"] = [lesson_json["objective"]]
 
@@ -277,6 +381,21 @@ async def build_lesson_for_session(db: aiosqlite.Connection, session_id: int) ->
             difficulty=lesson_json.get("difficulty", current_level),
             prompt_version=PROMPT_VERSION
         )
+
+        # Enrich topics_json with skill tags from lesson generator
+        skill_tags = getattr(lesson, "_skill_tags", [])
+        if skill_tags:
+            topics_json["skill_tags"] = [
+                f"{t['type']}\u2192{t['value']} ({t.get('cefr_level', '')})"
+                for t in skill_tags
+                if isinstance(t, dict) and t.get("type") and t.get("value")
+            ]
+            # Update the artifact's topics_json with enriched data
+            await db.execute(
+                "UPDATE lesson_artifacts SET topics_json = ? WHERE id = ?",
+                (json.dumps(topics_json), artifact_id)
+            )
+            await db.commit()
 
         logger.info(f"Created lesson artifact {artifact_id} for session {session_id}")
         return {"success": True, "artifact_id": artifact_id}
@@ -421,60 +540,74 @@ async def on_session_confirmed(db: aiosqlite.Connection, session_id: int, teache
         "quiz": {"status": STATUS_PENDING}
     }
 
-    try:
-        # Generate lesson (with timeout to avoid blocking)
-        lesson_result = await asyncio.wait_for(
-            build_lesson_for_session(db, session_id),
-            timeout=30.0  # 30 second timeout
-        )
+    # Attempt lesson generation with retry
+    for attempt in range(2):
+        try:
+            timeout = 60.0 if attempt == 0 else 45.0  # Generous first attempt
+            lesson_result = await asyncio.wait_for(
+                build_lesson_for_session(db, session_id),
+                timeout=timeout
+            )
 
-        if lesson_result.get("success"):
-            result["lesson"] = {
-                "status": STATUS_COMPLETED,
-                "artifact_id": lesson_result.get("artifact_id"),
-                "already_existed": lesson_result.get("already_existed", False)
-            }
-        else:
-            result["lesson"] = {
-                "status": STATUS_FAILED,
-                "error": lesson_result.get("error")
-            }
-            logger.warning(f"Lesson generation failed for session {session_id}: {lesson_result.get('error')}")
+            if lesson_result.get("success"):
+                result["lesson"] = {
+                    "status": STATUS_COMPLETED,
+                    "artifact_id": lesson_result.get("artifact_id"),
+                    "already_existed": lesson_result.get("already_existed", False)
+                }
+                break
+            else:
+                result["lesson"] = {
+                    "status": STATUS_FAILED,
+                    "error": lesson_result.get("error")
+                }
+                logger.warning(f"Lesson generation failed for session {session_id}: {lesson_result.get('error')}")
 
-    except asyncio.TimeoutError:
-        result["lesson"] = {"status": STATUS_FAILED, "error": "Generation timed out"}
-        logger.warning(f"Lesson generation timed out for session {session_id}")
-    except Exception as e:
-        result["lesson"] = {"status": STATUS_FAILED, "error": "Service temporarily unavailable"}
-        logger.error(f"Lesson generation error for session {session_id}: {e}")
+        except asyncio.TimeoutError:
+            if attempt == 0:
+                logger.warning(f"Lesson gen attempt 1 timed out for session {session_id}, retrying...")
+                continue
+            result["lesson"] = {"status": STATUS_FAILED, "error": "Generation timed out after retry"}
+            logger.warning(f"Lesson generation timed out after retry for session {session_id}")
+        except Exception as e:
+            result["lesson"] = {"status": STATUS_FAILED, "error": "Service temporarily unavailable"}
+            logger.error(f"Lesson generation error for session {session_id}: {e}")
+            break
 
     # Only generate quiz if lesson succeeded
     if result["lesson"]["status"] == STATUS_COMPLETED:
-        try:
-            quiz_result = await asyncio.wait_for(
-                build_next_quiz_from_lesson(db, session_id),
-                timeout=30.0
-            )
+        for attempt in range(2):
+            try:
+                timeout = 60.0 if attempt == 0 else 45.0
+                quiz_result = await asyncio.wait_for(
+                    build_next_quiz_from_lesson(db, session_id),
+                    timeout=timeout
+                )
 
-            if quiz_result.get("success"):
-                result["quiz"] = {
-                    "status": STATUS_COMPLETED,
-                    "quiz_id": quiz_result.get("quiz_id"),
-                    "already_existed": quiz_result.get("already_existed", False)
-                }
-            else:
-                result["quiz"] = {
-                    "status": STATUS_FAILED,
-                    "error": quiz_result.get("error")
-                }
-                logger.warning(f"Quiz generation failed for session {session_id}: {quiz_result.get('error')}")
+                if quiz_result.get("success"):
+                    result["quiz"] = {
+                        "status": STATUS_COMPLETED,
+                        "quiz_id": quiz_result.get("quiz_id"),
+                        "already_existed": quiz_result.get("already_existed", False)
+                    }
+                    break
+                else:
+                    result["quiz"] = {
+                        "status": STATUS_FAILED,
+                        "error": quiz_result.get("error")
+                    }
+                    logger.warning(f"Quiz generation failed for session {session_id}: {quiz_result.get('error')}")
 
-        except asyncio.TimeoutError:
-            result["quiz"] = {"status": STATUS_FAILED, "error": "Generation timed out"}
-            logger.warning(f"Quiz generation timed out for session {session_id}")
-        except Exception as e:
-            result["quiz"] = {"status": STATUS_FAILED, "error": "Service temporarily unavailable"}
-            logger.error(f"Quiz generation error for session {session_id}: {e}")
+            except asyncio.TimeoutError:
+                if attempt == 0:
+                    logger.warning(f"Quiz gen attempt 1 timed out for session {session_id}, retrying...")
+                    continue
+                result["quiz"] = {"status": STATUS_FAILED, "error": "Generation timed out after retry"}
+                logger.warning(f"Quiz generation timed out after retry for session {session_id}")
+            except Exception as e:
+                result["quiz"] = {"status": STATUS_FAILED, "error": "Service temporarily unavailable"}
+                logger.error(f"Quiz generation error for session {session_id}: {e}")
+                break
 
     return result
 

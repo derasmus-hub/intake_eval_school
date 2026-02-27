@@ -17,6 +17,35 @@ from app.db import learning_loop as ll
 
 logger = logging.getLogger(__name__)
 
+# Canonical skill taxonomy mapping — normalizes free-form AI tags to fixed tags
+SKILL_ALIASES = {
+    "grammar_articles": "articles_definite",
+    "articles_a_an_usage": "articles_indefinite",
+    "articles_the_usage": "articles_definite",
+    "grammar_articles_indefinite": "articles_indefinite",
+    "grammar_articles_definite": "articles_definite",
+    "grammar_articles_sentence_structure": "word_order",
+    "grammar_articles_basic": "articles_indefinite",
+    "vocabulary_business": "business_basic",
+    "grammar_ordering": "word_order",
+    "grammar_sentence_order": "word_order",
+    "grammar_sentence_structure": "word_order",
+    "sentence_structure": "word_order",
+    "translation_business": "business_basic",
+    "vocabulary_articles": "articles_indefinite",
+    "prepositions_time": "word_order",
+    "prepositions_place": "word_order",
+    "prepositions_days": "word_order",
+    "vocabulary_prepositions": "everyday_actions",
+    "translation_prepositions": "everyday_actions",
+    "articles_basic": "articles_indefinite",
+}
+
+
+def normalize_skill_tag(tag: str) -> str:
+    """Map free-form AI skill tags to canonical taxonomy tags."""
+    return SKILL_ALIASES.get(tag, tag)
+
 
 def normalize_answer(answer: str) -> str:
     """Normalize an answer for comparison."""
@@ -25,12 +54,50 @@ def normalize_answer(answer: str) -> str:
     return answer.strip().lower()
 
 
+def _strip_articles(text: str) -> str:
+    """Remove leading articles from a normalized string."""
+    for article in ("the ", "a ", "an "):
+        if text.startswith(article):
+            text = text[len(article):]
+    return text
+
+
+def _normalize_punctuation(text: str) -> str:
+    """Remove trailing punctuation and collapse whitespace."""
+    import re
+    text = re.sub(r'[.,!?;:]+$', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def _normalize_contractions(text: str) -> str:
+    """Expand common contractions for comparison."""
+    replacements = {
+        "i'm": "i am", "you're": "you are", "he's": "he is", "she's": "she is",
+        "it's": "it is", "we're": "we are", "they're": "they are",
+        "isn't": "is not", "aren't": "are not", "wasn't": "was not",
+        "weren't": "were not", "don't": "do not", "doesn't": "does not",
+        "didn't": "did not", "won't": "will not", "can't": "cannot",
+        "couldn't": "could not", "shouldn't": "should not",
+        "wouldn't": "would not", "haven't": "have not", "hasn't": "has not",
+        "hadn't": "had not", "i've": "i have", "you've": "you have",
+        "we've": "we have", "they've": "they have", "i'll": "i will",
+        "you'll": "you will", "he'll": "he will", "she'll": "she will",
+        "we'll": "we will", "they'll": "they will", "i'd": "i would",
+        "you'd": "you would", "he'd": "he would", "she'd": "she would",
+        "we'd": "we would", "they'd": "they would",
+    }
+    for contraction, expanded in replacements.items():
+        text = text.replace(contraction, expanded)
+    return text
+
+
 def score_question(question: Dict[str, Any], student_answer: str) -> Dict[str, Any]:
     """
     Score a single question.
 
     Returns:
-        dict with: is_correct, expected_answer, explanation
+        dict with: is_correct, expected_answer, explanation, needs_ai_grading
     """
     q_type = question.get("type", "")
     correct_answer = question.get("correct_answer", "")
@@ -38,6 +105,7 @@ def score_question(question: Dict[str, Any], student_answer: str) -> Dict[str, A
     correct_norm = normalize_answer(correct_answer)
 
     is_correct = False
+    needs_ai_grading = False
 
     if q_type == "multiple_choice":
         # Exact match on option
@@ -55,22 +123,41 @@ def score_question(question: Dict[str, Any], student_answer: str) -> Dict[str, A
             is_correct = student_bool == correct_bool
 
     elif q_type == "fill_blank":
-        # Exact match, but allow some flexibility
+        # Exact match first
         is_correct = student_norm == correct_norm
 
-        # Also check if answer is contained (for articles, etc.)
-        if not is_correct and len(correct_norm) > 2:
-            # Allow partial matches for short answers like "have", "has"
-            is_correct = student_norm == correct_norm
+        if not is_correct:
+            # Try with punctuation removed
+            student_clean = _normalize_punctuation(student_norm)
+            correct_clean = _normalize_punctuation(correct_norm)
+            is_correct = student_clean == correct_clean
 
-    elif q_type == "translate":
-        # For translation, do exact match
-        # Could be enhanced with AI grading later
+        if not is_correct:
+            # Strip articles for comparison (common Polish learner issue)
+            student_stripped = _strip_articles(student_norm)
+            correct_stripped = _strip_articles(correct_norm)
+            if student_stripped == correct_stripped and len(correct_stripped) > 2:
+                is_correct = True
+
+    elif q_type in ("translate", "reorder"):
+        # Try exact match first
         is_correct = student_norm == correct_norm
 
-    elif q_type == "reorder":
-        # Exact match on reordered sentence
-        is_correct = student_norm == correct_norm
+        if not is_correct:
+            # Try with contractions expanded and punctuation normalized
+            student_expanded = _normalize_contractions(_normalize_punctuation(student_norm))
+            correct_expanded = _normalize_contractions(_normalize_punctuation(correct_norm))
+            is_correct = student_expanded == correct_expanded
+
+        if not is_correct:
+            # Try article-stripped comparison
+            student_stripped = _strip_articles(_normalize_contractions(_normalize_punctuation(student_norm)))
+            correct_stripped = _strip_articles(_normalize_contractions(_normalize_punctuation(correct_norm)))
+            is_correct = student_stripped == correct_stripped
+
+        # Flag for AI re-evaluation if still incorrect
+        if not is_correct:
+            needs_ai_grading = True
 
     else:
         # Default: exact match
@@ -79,8 +166,48 @@ def score_question(question: Dict[str, Any], student_answer: str) -> Dict[str, A
     return {
         "is_correct": is_correct,
         "expected_answer": correct_answer,
+        "needs_ai_grading": needs_ai_grading,
         "explanation": question.get("explanation", ""),
     }
+
+
+async def ai_grade_open_answer(
+    question_text: str,
+    expected: str,
+    student_answer: str,
+    student_level: str,
+) -> Dict[str, Any]:
+    """Use AI to grade translation/reorder answers with partial credit."""
+    from app.services.ai_client import ai_chat
+
+    prompt = f"""Grade this English learner's answer. Student level: {student_level}
+
+Question: {question_text}
+Expected answer: {expected}
+Student's answer: {student_answer}
+
+Respond with JSON:
+{{"is_correct": true/false, "partial_credit": 0.0-1.0, "feedback": "brief explanation"}}
+
+Rules:
+- Accept grammatically correct alternatives (contractions, synonyms)
+- For A1 students, accept answers missing articles if the core meaning is correct
+- partial_credit: 1.0 = perfect, 0.5 = meaning correct but grammar errors, 0.0 = wrong"""
+
+    try:
+        result = await ai_chat(
+            messages=[
+                {"role": "system", "content": "You are a fair English teacher grading A1-C2 students."},
+                {"role": "user", "content": prompt},
+            ],
+            use_case="cheap",
+            temperature=0.1,
+            json_mode=True,
+        )
+        return json.loads(result)
+    except Exception as e:
+        logger.error(f"AI grading failed: {e}")
+        return {"is_correct": False, "partial_credit": 0.0, "feedback": "Could not grade"}
 
 
 async def score_quiz_attempt(
@@ -137,7 +264,7 @@ async def score_quiz_attempt(
 
             result = score_question(q, student_answer)
 
-            skill_tag = q.get("skill_tag", "general")
+            skill_tag = normalize_skill_tag(q.get("skill_tag", "general"))
 
             # Track skill performance
             if skill_tag not in skill_results:

@@ -205,14 +205,27 @@ async def update_learning_plan(
             except:
                 goals = [goals] if goals else []
 
-        # Get previous plan
+        # Get previous plan — pass full structured data, not just summary
         previous_plan = await ll.get_latest_learning_plan(db, student_id)
         previous_plan_summary = "No previous plan exists."
         if previous_plan:
             plan_json = previous_plan.get("plan_json", {})
             if isinstance(plan_json, str):
                 plan_json = json.loads(plan_json)
-            previous_plan_summary = plan_json.get("summary", previous_plan.get("summary", "Previous plan exists but no summary available."))
+
+            # Build structured previous plan text
+            parts = [f"Summary: {plan_json.get('summary', 'N/A')}"]
+            if plan_json.get("goals_next_2_weeks"):
+                parts.append(f"Goals: {json.dumps(plan_json['goals_next_2_weeks'])}")
+            if plan_json.get("top_weaknesses"):
+                parts.append(f"Top Weaknesses: {json.dumps(plan_json['top_weaknesses'])}")
+            if plan_json.get("difficulty_adjustment"):
+                parts.append(f"Difficulty Adjustment: {json.dumps(plan_json['difficulty_adjustment'])}")
+            if plan_json.get("grammar_focus"):
+                parts.append(f"Grammar Focus: {json.dumps(plan_json['grammar_focus'])}")
+            if plan_json.get("vocabulary_focus"):
+                parts.append(f"Vocabulary Focus: {json.dumps(plan_json['vocabulary_focus'])}")
+            previous_plan_summary = "\n".join(parts)
 
         # Gather analysis data
         quiz_analysis = await gather_quiz_analysis(db, student_id)

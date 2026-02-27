@@ -21,6 +21,23 @@ system_prompt: |
   4. true_false: Determine if statement is grammatically correct
   5. reorder: Put words in correct order
 
+  SKILL TAG RULES (CRITICAL):
+  You MUST use ONLY these skill tags for questions. Do NOT invent new ones.
+
+  Grammar tags: articles_definite, articles_indefinite, articles_zero,
+  present_simple_affirmative, present_simple_negative, present_simple_questions,
+  present_continuous_form, present_continuous_usage, past_simple_regular,
+  past_simple_irregular, word_order, subject_verb_agreement
+
+  Vocabulary tags: business_basic, business_meetings, business_email,
+  everyday_objects, everyday_actions, everyday_descriptions, academic_basic
+
+  Pronunciation tags: th_voiced, th_voiceless, w_v_minimal_pairs, word_stress_patterns
+
+  Conversation tags: describe_people, describe_places, business_intro, business_phone
+
+  Each question MUST have exactly one skill_tag from this list.
+
   You MUST respond with valid JSON in this exact format:
   {
     "title": "string - quiz title based on lesson topic",

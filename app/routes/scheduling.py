@@ -355,6 +355,114 @@ async def teacher_cancel_session(session_id: int, request: Request, db=Depends(g
     return {"id": session_id, "status": "cancelled"}
 
 
+class SessionCompleteRequest(BaseModel):
+    teacher_notes: str | None = None
+    homework: str | None = None
+    session_summary: str | None = None
+
+
+@router.post("/api/teacher/sessions/{session_id}/complete")
+async def complete_session(
+    session_id: int,
+    body: SessionCompleteRequest,
+    request: Request,
+    db=Depends(get_db),
+):
+    """Teacher marks a session as completed. Triggers post-class hooks:
+    1. Stores teacher notes/homework/summary
+    2. Extracts learning points from the session's lesson artifact
+    3. Triggers plan update if notes are substantial
+    """
+    user = await _require_teacher(request, db)
+
+    # Verify session exists and is in a completable state
+    cur = await db.execute(
+        "SELECT id, student_id, teacher_id, status FROM sessions WHERE id = ?",
+        (session_id,),
+    )
+    session = await cur.fetchone()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session["status"] not in ("confirmed",):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot complete session with status '{session['status']}'",
+        )
+
+    student_id = session["student_id"]
+
+    # Update session to completed with notes
+    await db.execute(
+        """UPDATE sessions
+           SET status = 'completed',
+               teacher_notes = COALESCE(?, teacher_notes),
+               homework = COALESCE(?, homework),
+               session_summary = COALESCE(?, session_summary),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?""",
+        (body.teacher_notes, body.homework, body.session_summary, session_id),
+    )
+    await db.commit()
+
+    # Post-class hook 1: Extract learning points from lesson artifact
+    points_extracted = 0
+    try:
+        artifact = await get_session_lesson(db, session_id)
+        if artifact and artifact.get("lesson_json"):
+            from app.services.learning_point_extractor import extract_learning_points
+
+            lesson_content = artifact["lesson_json"]
+            cur = await db.execute(
+                "SELECT current_level FROM users WHERE id = ?", (student_id,)
+            )
+            student_row = await cur.fetchone()
+            student_level = student_row["current_level"] if student_row else "A1"
+
+            points = await extract_learning_points(lesson_content, student_level)
+            from datetime import datetime, timedelta, timezone
+
+            tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+            for p in points:
+                await db.execute(
+                    """INSERT INTO learning_points
+                       (student_id, lesson_id, point_type, content,
+                        polish_explanation, example_sentence,
+                        importance_weight, next_review_date)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        student_id,
+                        artifact["id"],
+                        p.get("point_type", "grammar_rule"),
+                        p.get("content", ""),
+                        p.get("polish_explanation", ""),
+                        p.get("example_sentence", ""),
+                        p.get("importance_weight", 3),
+                        tomorrow,
+                    ),
+                )
+            await db.commit()
+            points_extracted = len(points)
+    except Exception as e:
+        logger.error(f"Learning point extraction failed for session {session_id}: {e}")
+
+    # Post-class hook 2: Trigger plan update if notes are substantial
+    plan_updated = False
+    try:
+        from app.services.plan_updater import on_teacher_notes_added
+
+        result = await on_teacher_notes_added(db, student_id, session_id)
+        plan_updated = result.get("success", False) and not result.get("skipped", False)
+    except Exception as e:
+        logger.error(f"Plan update failed for session {session_id}: {e}")
+
+    return {
+        "id": session_id,
+        "status": "completed",
+        "learning_points_extracted": points_extracted,
+        "plan_updated": plan_updated,
+    }
+
+
 class AttendanceUpdate(BaseModel):
     attended: int  # 1 = attended, -1 = no-show, 0 = unknown
     lesson_id: int | None = None
