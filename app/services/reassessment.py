@@ -14,14 +14,23 @@ _REASSESSMENT_SYSTEM = """You are an expert English language assessor specializi
 
 You are performing a periodic reassessment based on a student's recent lesson performance data.
 
-Analyze the student's recent lesson topics, skill tags, quiz scores, and progress to determine their current CEFR level across all sub-skills.
+Analyze the student's recent lesson topics, skill tags, quiz scores, progress scores, and score trajectory to determine their current CEFR level across all sub-skills.
+
+CRITICAL — TRAJECTORY-AWARE ASSESSMENT:
+You MUST weight the student's RECENT performance (last 5 scores) much more heavily than early scores. A student whose recent scores are consistently 70%+ is performing at a HIGHER level than their lifetime average suggests. If the recent score trend shows strong upward momentum and recent scores are in the 70-85%+ range, the student is READY for the next CEFR level, even if their lifetime average is lower.
+
+Promotion guidelines based on recent performance:
+- Recent avg 75%+ with improving trajectory → PROMOTE to next CEFR level
+- Recent avg 60-74% with improving trajectory → Consider promotion, report as "borderline"
+- Recent avg < 60% or declining trajectory → KEEP at current level
 
 Consider:
-1. The range of grammar topics covered — are they handling B1/B2 grammar or still working on A2?
-2. Vocabulary breadth — topics and CEFR tags on recent lessons
-3. Reading comprehension performance from quiz scores
-4. Writing indicators from lesson content
-5. Overall trajectory — is the student improving, stable, or struggling?
+1. The RECENT SCORE TRAJECTORY (most important signal) — are the last 5 scores trending up?
+2. The range of grammar topics covered — are they handling B1/B2 grammar or still working on A2?
+3. Vocabulary breadth — topics and CEFR tags on recent lessons
+4. Reading comprehension performance from quiz scores
+5. Writing indicators from lesson content
+6. Overall trajectory — is the student improving, stable, or struggling?
 
 You MUST respond with valid JSON in this exact format:
 {
@@ -112,6 +121,41 @@ async def trigger_reassessment(student_id: int, db) -> dict | None:
     )
     cefr_history = [dict(row) for row in await cursor.fetchall()]
 
+    # Get progress scores for trajectory analysis
+    cursor = await db.execute(
+        """SELECT score, completed_at
+           FROM progress
+           WHERE student_id = ? AND score IS NOT NULL
+           ORDER BY completed_at DESC
+           LIMIT 10""",
+        (student_id,),
+    )
+    progress_rows = [dict(row) for row in await cursor.fetchall()]
+
+    # Compute trajectory: recent 5 vs earlier 5
+    progress_scores = [row["score"] for row in progress_rows if row["score"] is not None]
+    recent_5 = progress_scores[:5]  # most recent (already DESC)
+    earlier_5 = progress_scores[5:10]
+    recent_avg = round(sum(recent_5) / len(recent_5), 1) if recent_5 else None
+    earlier_avg = round(sum(earlier_5) / len(earlier_5), 1) if earlier_5 else None
+    lifetime_avg = round(sum(progress_scores) / len(progress_scores), 1) if progress_scores else None
+
+    if recent_avg is not None and earlier_avg is not None:
+        if recent_avg - earlier_avg > 10:
+            score_trend = "STRONG UPWARD"
+        elif recent_avg - earlier_avg > 3:
+            score_trend = "IMPROVING"
+        elif earlier_avg - recent_avg > 10:
+            score_trend = "DECLINING"
+        elif earlier_avg - recent_avg > 3:
+            score_trend = "SLIGHT DECLINE"
+        else:
+            score_trend = "STABLE"
+    elif recent_avg is not None:
+        score_trend = "INSUFFICIENT DATA"
+    else:
+        score_trend = "NO DATA"
+
     # Build the user message
     lessons_summary = []
     for row in recent_lessons:
@@ -156,7 +200,15 @@ RECENT QUIZ SCORES:
 CEFR HISTORY:
 {chr(10).join(history_summary) if history_summary else 'No previous assessments'}
 
-Based on this data, determine the student's current CEFR level as JSON."""
+SCORE TRAJECTORY (CRITICAL — weight this heavily):
+- Recent 5 scores (newest first): {', '.join(str(s) + '%' for s in recent_5) if recent_5 else 'N/A'}
+- Recent 5 average: {recent_avg}%
+- Earlier 5 scores average: {earlier_avg}%
+- Lifetime average: {lifetime_avg}%
+- Trend: {score_trend}
+{'- NOTE: Recent scores of 75%+ with an upward trend strongly suggest readiness for the NEXT CEFR level.' if recent_avg and recent_avg >= 75 and score_trend in ('STRONG UPWARD', 'IMPROVING') else ''}
+
+Based on this data (especially the score trajectory), determine the student's current CEFR level as JSON."""
 
     result_text = await ai_chat(
         messages=[
