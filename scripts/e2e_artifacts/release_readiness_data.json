@@ -1,0 +1,823 @@
+{
+  "test_date": "2026-02-28T07:19:55.541810+00:00",
+  "student_id": 6,
+  "student_email": "release.test.final@proficiency.com",
+  "total_cycles": 15,
+  "final_level": "A2",
+  "patches": {
+    "patch1_windowed_avg": {
+      "status": "PASS",
+      "details": [
+        {
+          "cycle": 14,
+          "recent": 69.62,
+          "lifetime": 58.92,
+          "recommendation": "decrease_difficulty"
+        },
+        {
+          "cycle": 15,
+          "recent": 72.12,
+          "lifetime": 60.54,
+          "recommendation": "maintain"
+        }
+      ]
+    },
+    "patch2_confidence": {
+      "status": "PASS",
+      "details": [
+        {
+          "cycle": 10,
+          "confidence": 0.85,
+          "threshold_met": true,
+          "before": "A1",
+          "after": "A2"
+        }
+      ]
+    },
+    "patch3_cold_start": {
+      "status": "PASS",
+      "details": [
+        {
+          "cycle": 2,
+          "profile": {
+            "grammar_rule": "maintain",
+            "phrase": "maintain",
+            "usage_pattern": "maintain"
+          },
+          "active": true
+        }
+      ]
+    },
+    "patch4_auto_progress": {
+      "status": "PASS",
+      "details": [
+        {
+          "cycle": 3,
+          "lesson_id": 95,
+          "auto_created": true,
+          "score": "NULL",
+          "notes_contains_auto": true
+        },
+        {
+          "cycle": 6,
+          "lesson_id": 98,
+          "auto_created": true,
+          "score": "NULL",
+          "notes_contains_auto": true
+        }
+      ]
+    },
+    "patch5_trajectory": {
+      "status": "PASS",
+      "details": [
+        {
+          "cycle": 10,
+          "before": "A1",
+          "after": "A2",
+          "confidence": 0.85,
+          "trajectory": "improving",
+          "justification": "",
+          "natural": true,
+          "level_changed_in_db": true
+        }
+      ]
+    }
+  },
+  "cycles": [
+    {
+      "cycle": 1,
+      "target_pct": 15,
+      "quiz_score": 20,
+      "quiz_id": 93,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 1,
+      "lesson_id": 93,
+      "lesson_difficulty": "A1",
+      "lesson_objective": "Improve understanding and correct usage of English articles and basic sentence word order.",
+      "plan_version": 1,
+      "db_level": "A1",
+      "cefr_history_count": 1,
+      "dna_version": "2",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 20.0,
+      "dna_lifetime_avg": 20.0,
+      "dna_score_trend": "stable",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "phrase": "<2pts(1)",
+        "usage_pattern": "<2pts(1)",
+        "vocabulary": "<2pts(1)"
+      },
+      "weak_areas": [
+        {
+          "skill": "articles_indefinite",
+          "accuracy": 33,
+          "correct": 1,
+          "total": 3
+        },
+        {
+          "skill": "articles_definite",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "skill": "word_order",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        }
+      ],
+      "reassessment": null,
+      "session_id": 94,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 6,
+      "recall_avg_ef": "2.35",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 6,
+      "recall_score": 0
+    },
+    {
+      "cycle": 2,
+      "target_pct": 25,
+      "quiz_score": 20,
+      "quiz_id": 94,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 1,
+      "lesson_id": 94,
+      "lesson_difficulty": "A1",
+      "lesson_objective": "Enhance understanding and correct use of indefinite and definite articles, and improve basic word order in sentences at ",
+      "plan_version": 2,
+      "db_level": "A1",
+      "cefr_history_count": 1,
+      "dna_version": "3",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 20.0,
+      "dna_lifetime_avg": 20.0,
+      "dna_score_trend": "stable",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "phrase": "maintain",
+        "usage_pattern": "maintain",
+        "vocabulary": "<2pts(1)"
+      },
+      "weak_areas": [
+        {
+          "skill": "articles_indefinite",
+          "accuracy": 33,
+          "correct": 1,
+          "total": 3
+        },
+        {
+          "skill": "articles_definite",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "skill": "word_order",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        }
+      ],
+      "reassessment": null,
+      "session_id": 95,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 11,
+      "recall_avg_ef": "2.25",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 0
+    },
+    {
+      "cycle": 3,
+      "target_pct": 32,
+      "quiz_score": 33,
+      "quiz_id": 95,
+      "quiz_total_questions": 6,
+      "quiz_correct_count": 2,
+      "lesson_id": 95,
+      "lesson_difficulty": "A1",
+      "lesson_objective": "Improve the student's understanding and correct use of indefinite and definite articles, with a focus on basic sentence ",
+      "plan_version": 3,
+      "db_level": "A1",
+      "cefr_history_count": 1,
+      "dna_version": "4",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 20.0,
+      "dna_lifetime_avg": 20.0,
+      "dna_score_trend": "stable",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "phrase": "maintain",
+        "usage_pattern": "maintain",
+        "vocabulary": "maintain"
+      },
+      "weak_areas": [
+        {
+          "skill": "articles_indefinite",
+          "accuracy": 25,
+          "correct": 1,
+          "total": 4
+        },
+        {
+          "skill": "word_order",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        }
+      ],
+      "reassessment": null,
+      "session_id": 96,
+      "skip_progress": true,
+      "auto_progress_created": true,
+      "auto_progress_score": "NULL",
+      "auto_progress_notes": "Auto-created on lesson completion",
+      "promoted_naturally": false,
+      "learning_points_count": 17,
+      "recall_avg_ef": "2.18",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 6,
+      "recall_score": 0
+    },
+    {
+      "cycle": 4,
+      "target_pct": 42,
+      "quiz_score": 50,
+      "quiz_id": 96,
+      "quiz_total_questions": 6,
+      "quiz_correct_count": 3,
+      "lesson_id": 96,
+      "lesson_difficulty": "A1",
+      "lesson_objective": "Improve the student's understanding and correct use of indefinite and definite articles and basic word order in simple s",
+      "plan_version": 4,
+      "db_level": "A1",
+      "cefr_history_count": 1,
+      "dna_version": "5",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 30.0,
+      "dna_lifetime_avg": 30.0,
+      "dna_score_trend": "stable",
+      "difficulty_profile": {
+        "grammar_rule": "simplify",
+        "usage_pattern": "maintain",
+        "vocabulary": "maintain",
+        "phrase": "maintain"
+      },
+      "weak_areas": [
+        {
+          "skill": "articles_definite",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        }
+      ],
+      "reassessment": null,
+      "session_id": 97,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 22,
+      "recall_avg_ef": "2.09",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 0
+    },
+    {
+      "cycle": 5,
+      "target_pct": 52,
+      "quiz_score": 60,
+      "quiz_id": 97,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 3,
+      "lesson_id": 97,
+      "lesson_difficulty": "A1",
+      "lesson_objective": "Strengthen the student's understanding and correct use of indefinite and definite articles, as well as basic word order,",
+      "plan_version": 5,
+      "db_level": "A1",
+      "cefr_history_count": 1,
+      "dna_version": "6",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 37.5,
+      "dna_lifetime_avg": 37.5,
+      "dna_score_trend": "stable",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "phrase": "maintain",
+        "vocabulary": "maintain"
+      },
+      "weak_areas": [
+        {
+          "skill": "word_order",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        }
+      ],
+      "reassessment": null,
+      "session_id": 98,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 27,
+      "recall_avg_ef": "2.17",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 0
+    },
+    {
+      "cycle": 6,
+      "target_pct": 60,
+      "quiz_score": 60,
+      "quiz_id": 98,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 3,
+      "lesson_id": 98,
+      "lesson_difficulty": "A1",
+      "lesson_objective": "Improve understanding and correct use of indefinite and definite articles along with basic word order.",
+      "plan_version": 6,
+      "db_level": "A1",
+      "cefr_history_count": 1,
+      "dna_version": "7",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 37.5,
+      "dna_lifetime_avg": 37.5,
+      "dna_score_trend": "stable",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "phrase": "maintain",
+        "vocabulary": "maintain"
+      },
+      "weak_areas": [],
+      "reassessment": null,
+      "session_id": 99,
+      "skip_progress": true,
+      "auto_progress_created": true,
+      "auto_progress_score": "NULL",
+      "auto_progress_notes": "Auto-created on lesson completion",
+      "promoted_naturally": false,
+      "learning_points_count": 32,
+      "recall_avg_ef": "2.22",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 0
+    },
+    {
+      "cycle": 7,
+      "target_pct": 67,
+      "quiz_score": 60,
+      "quiz_id": 99,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 3,
+      "lesson_id": 99,
+      "lesson_difficulty": "A1",
+      "lesson_objective": "Improve the student's understanding and correct use of indefinite and definite articles, and practice basic word order i",
+      "plan_version": 7,
+      "db_level": "A1",
+      "cefr_history_count": 1,
+      "dna_version": "8",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 42.0,
+      "dna_lifetime_avg": 42.0,
+      "dna_score_trend": "stable",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "phrase": "maintain",
+        "vocabulary": "maintain"
+      },
+      "weak_areas": [
+        {
+          "skill": "word_order",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 2
+        }
+      ],
+      "reassessment": null,
+      "session_id": 100,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 37,
+      "recall_avg_ef": "2.27",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 100
+    },
+    {
+      "cycle": 8,
+      "target_pct": 73,
+      "quiz_score": 67,
+      "quiz_id": 100,
+      "quiz_total_questions": 6,
+      "quiz_correct_count": 4,
+      "lesson_id": 100,
+      "lesson_difficulty": "A1",
+      "lesson_objective": "Improve the student's use of indefinite and definite articles and strengthen understanding of basic word order.",
+      "plan_version": 8,
+      "db_level": "A1",
+      "cefr_history_count": 1,
+      "dna_version": "9",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 46.17,
+      "dna_lifetime_avg": 46.17,
+      "dna_score_trend": "improving",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "phrase": "maintain",
+        "vocabulary": "maintain"
+      },
+      "weak_areas": [
+        {
+          "skill": "word_order",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        }
+      ],
+      "reassessment": null,
+      "session_id": 101,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 43,
+      "recall_avg_ef": "2.31",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 6,
+      "recall_score": 100
+    },
+    {
+      "cycle": 9,
+      "target_pct": 80,
+      "quiz_score": 80,
+      "quiz_id": 101,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 4,
+      "lesson_id": 101,
+      "lesson_difficulty": "A1",
+      "lesson_objective": "Enhance accuracy in using indefinite and definite articles, and improve basic word order in sentences.",
+      "plan_version": 9,
+      "db_level": "A1",
+      "cefr_history_count": 1,
+      "dna_version": "10",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 51.0,
+      "dna_lifetime_avg": 51.0,
+      "dna_score_trend": "improving",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "vocabulary": "maintain",
+        "phrase": "maintain"
+      },
+      "weak_areas": [
+        {
+          "skill": "word_order",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        }
+      ],
+      "reassessment": null,
+      "session_id": 102,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 48,
+      "recall_avg_ef": "2.34",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 88
+    },
+    {
+      "cycle": 10,
+      "target_pct": 85,
+      "quiz_score": 80,
+      "quiz_id": 102,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 4,
+      "lesson_id": 102,
+      "lesson_difficulty": "A1",
+      "lesson_objective": "Improve the student's understanding and correct use of indefinite articles and basic word order in sentences.",
+      "plan_version": 10,
+      "db_level": "A2",
+      "cefr_history_count": 2,
+      "dna_version": "11",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 54.62,
+      "dna_lifetime_avg": 54.62,
+      "dna_score_trend": "improving",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "vocabulary": "maintain",
+        "phrase": "maintain"
+      },
+      "weak_areas": [
+        {
+          "skill": "word_order",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        }
+      ],
+      "reassessment": {
+        "triggered": true,
+        "new_level": "A2",
+        "confidence": 0.85,
+        "trajectory": "improving"
+      },
+      "session_id": 103,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": true,
+      "learning_points_count": 53,
+      "recall_avg_ef": "2.37",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 100
+    },
+    {
+      "cycle": 11,
+      "target_pct": 50,
+      "quiz_score": 50,
+      "quiz_id": 103,
+      "quiz_total_questions": 6,
+      "quiz_correct_count": 3,
+      "lesson_id": 103,
+      "lesson_difficulty": "A2",
+      "lesson_objective": "Enhance sentence structure and use of definite articles while maintaining progress with indefinite articles.",
+      "plan_version": 11,
+      "db_level": "A2",
+      "cefr_history_count": 2,
+      "dna_version": "12",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 58.38,
+      "dna_lifetime_avg": 54.11,
+      "dna_score_trend": "improving",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "vocabulary": "maintain",
+        "phrase": "maintain"
+      },
+      "weak_areas": [
+        {
+          "skill": "articles_zero",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        },
+        {
+          "skill": "word_order",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 1
+        }
+      ],
+      "reassessment": null,
+      "session_id": 104,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 58,
+      "recall_avg_ef": "2.38",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 0
+    },
+    {
+      "cycle": 12,
+      "target_pct": 63,
+      "quiz_score": 60,
+      "quiz_id": 104,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 3,
+      "lesson_id": 104,
+      "lesson_difficulty": "A2",
+      "lesson_objective": "Improve the student's understanding and correct use of word order and zero article usage while maintaining proficiency w",
+      "plan_version": 12,
+      "db_level": "A2",
+      "cefr_history_count": 2,
+      "dna_version": "13",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 63.38,
+      "dna_lifetime_avg": 54.7,
+      "dna_score_trend": "improving",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "vocabulary": "maintain",
+        "phrase": "maintain"
+      },
+      "weak_areas": [
+        {
+          "skill": "word_order",
+          "accuracy": 0,
+          "correct": 0,
+          "total": 2
+        }
+      ],
+      "reassessment": null,
+      "session_id": 105,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 63,
+      "recall_avg_ef": "2.42",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 0
+    },
+    {
+      "cycle": 13,
+      "target_pct": 74,
+      "quiz_score": 80,
+      "quiz_id": 105,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 4,
+      "lesson_id": 105,
+      "lesson_difficulty": "A2",
+      "lesson_objective": "Improve the student's understanding and correct use of English sentence structure, focusing on word order and sentence t",
+      "plan_version": 13,
+      "db_level": "A2",
+      "cefr_history_count": 2,
+      "dna_version": "14",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 67.12,
+      "dna_lifetime_avg": 57.0,
+      "dna_score_trend": "improving",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "vocabulary": "challenge",
+        "phrase": "maintain"
+      },
+      "weak_areas": [],
+      "reassessment": null,
+      "session_id": 106,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 68,
+      "recall_avg_ef": "2.46",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 100
+    },
+    {
+      "cycle": 14,
+      "target_pct": 83,
+      "quiz_score": 80,
+      "quiz_id": 106,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 4,
+      "lesson_id": 106,
+      "lesson_difficulty": "A2",
+      "lesson_objective": "Reinforce understanding of word order in English sentences and practice the use of basic sentence transformations.",
+      "plan_version": 14,
+      "db_level": "A2",
+      "cefr_history_count": 2,
+      "dna_version": "15",
+      "dna_recommendation": "decrease_difficulty",
+      "dna_recent_avg": 69.62,
+      "dna_lifetime_avg": 58.92,
+      "dna_score_trend": "improving",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "vocabulary": "challenge",
+        "phrase": "maintain"
+      },
+      "weak_areas": [],
+      "reassessment": null,
+      "session_id": 107,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 73,
+      "recall_avg_ef": "2.50",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 100
+    },
+    {
+      "cycle": 15,
+      "target_pct": 90,
+      "quiz_score": 80,
+      "quiz_id": 107,
+      "quiz_total_questions": 5,
+      "quiz_correct_count": 4,
+      "lesson_id": 107,
+      "lesson_difficulty": "A2",
+      "lesson_objective": "Enhance the student's ability to transform basic sentences and improve word order accuracy.",
+      "plan_version": 15,
+      "db_level": "A2",
+      "cefr_history_count": 2,
+      "dna_version": "16",
+      "dna_recommendation": "maintain",
+      "dna_recent_avg": 72.12,
+      "dna_lifetime_avg": 60.54,
+      "dna_score_trend": "stable",
+      "difficulty_profile": {
+        "grammar_rule": "maintain",
+        "usage_pattern": "maintain",
+        "vocabulary": "challenge",
+        "phrase": "maintain"
+      },
+      "weak_areas": [],
+      "reassessment": null,
+      "session_id": 108,
+      "skip_progress": false,
+      "auto_progress_created": false,
+      "auto_progress_score": null,
+      "auto_progress_notes": null,
+      "promoted_naturally": false,
+      "learning_points_count": 78,
+      "recall_avg_ef": "2.54",
+      "observations_posted": true,
+      "notes_posted": true,
+      "points_extracted": 5,
+      "recall_score": 100
+    }
+  ],
+  "scores": [
+    20,
+    20,
+    33,
+    50,
+    60,
+    60,
+    60,
+    67,
+    80,
+    80,
+    50,
+    60,
+    80,
+    80,
+    80
+  ],
+  "api_calls": 235,
+  "errors": 1,
+  "student_counts": {
+    "sessions": "15",
+    "lessons": "31",
+    "next_quizzes": "15",
+    "quiz_attempts": "15",
+    "learning_plans": "15",
+    "cefr_history": "2",
+    "learning_dna": "16",
+    "learning_points": "78",
+    "progress": "15",
+    "session_skill_observations": "60",
+    "recall_sessions": "15"
+  }
+}
